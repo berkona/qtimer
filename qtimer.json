@@ -1,0 +1,10 @@
+// Sample PyTimer config file
+{
+	"accounts": {
+		"freshbooks": {
+			"type": "freshbooks",
+			"url": "solipsisdev.freshbooks.com",
+			"token": "200c7ef1c5315d911da3ed206392d10e"
+		},
+	}
+}

@@ -1,0 +1,3 @@
+
+class ACCommandException(Exception):
+    pass
