@@ -1,15 +1,14 @@
 #! /usr/bin/env python
 
 # import freshbooks
-import sqlite3
 import argparse
+import sqlite3
+import json
 import tz
 
-# import json
-
-# from activecollab.library import ACRequest
+from activecollab.library import ACRequest
 from datetime import datetime, timedelta
-from os import path
+from os import path, makedirs
 
 DB_VERSION = 3
 CONFIG_NAME = 'qtimer.json'
@@ -21,8 +20,23 @@ class PyTimer:
         for n, v in vars(config).items():
             setattr(self, n, v)
 
-        scriptRoot = path.dirname(path.realpath(__file__))
+        scriptRoot = path.expanduser('~/.qtimer')
+        if not path.exists(scriptRoot):
+            makedirs(scriptRoot)
+
         self.dataPath = path.join(scriptRoot, DATA_NAME)
+        self.configPath = path.join(scriptRoot, CONFIG_NAME)
+
+        self.token = None
+        self.url = None
+
+        if not path.exists(self.configPath):
+            return
+
+        with open(self.configPath, 'r') as f:
+            userConfig = json.load(f)
+            self.token = userConfig['account']['token']
+            self.url = userConfig['account']['url']
 
     def run(self):
         self.conn = sqlite3.connect(self.dataPath,
@@ -35,7 +49,8 @@ class PyTimer:
                 'end': self._endTimer,
                 'show': self._showTimer,
                 'edit': self._editTimer,
-                'assign': self._assignGroup
+                'assign': self._assignGroup,
+                'projects': self._listProjects
             }.get(self.op, self._noOp)()
         finally:
             self.conn.close()
@@ -90,20 +105,26 @@ class PyTimer:
                 ticket_id = ? WHERE name LIKE ?''',
                 (self.project, self.ticket, self.name))
 
+    def _listProjects(self):
+        if self.name == 'all':
+            req = ACRequest('projects', api_key=self.token, ac_url=self.url)
+            for url in req.execute():
+                print(type(url), '=>', url)
+
     def _noOp(self):
         print('There is no defined operation for the command %s.' % self.op)
 
     def _initDB(self):
         with self.conn:
-            self.conn.execute(
-            '''
+            self.conn.execute('''
             CREATE TABLE IF NOT EXISTS timers
                 (id integer PRIMARY KEY AUTOINCREMENT, group_id integer,
-                name text NOT NULL, note text, start timestamp, end timestamp);
-
+                name text NOT NULL, note text, start timestamp, end timestamp)
+            ''')
+            self.conn.execute('''
             CREATE TABLE IF NOT EXISTS groups
                 (id integer PRIMARY KEY AUTOINCREMENT, name text NOT NULL,
-                 project_id integer, ticket_id integer);
+                 project_id integer, ticket_id integer)
             ''')
 
     def _findGroupId(self, group):
@@ -157,6 +178,11 @@ def main():
     parser_assign.add_argument('name', help='Group to assign a ticket')
     parser_assign.add_argument('project', help='Project id to assign group to')
     parser_assign.add_argument('ticket', help='Ticket id to assign group to')
+
+    parser_projects = subparsers.add_parser('projects',
+        help='Show details about projects')
+    parser_projects.add_argument('name', nargs='?', default='all',
+        help='Specify a timer to show details about')
 
     config = parser.parse_args()
 
