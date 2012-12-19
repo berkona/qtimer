@@ -1,8 +1,0 @@
-// Sample PyTimer config file
-{
-	"account": {
-		"type": "ac",
-		"url": "ac.example.net",
-		"token": "194-XXXXXXXXXXX"
-	}
-}
