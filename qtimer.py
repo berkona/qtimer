@@ -11,7 +11,7 @@ import tz
 from datetime import datetime, timedelta
 from os import path
 
-DB_VERSION = 2
+DB_VERSION = 3
 CONFIG_NAME = 'qtimer.json'
 DATA_NAME = 'timers v%d.db' % DB_VERSION
 
@@ -34,19 +34,30 @@ class PyTimer:
                 'start': self._startTimer,
                 'end': self._endTimer,
                 'show': self._showTimer,
-                'edit': self._editTimer
+                'edit': self._editTimer,
+                'assign': self._assignGroup
             }.get(self.op, self._noOp)()
         finally:
             self.conn.close()
 
     def _startTimer(self):
         with self.conn:
-            self.conn.execute('INSERT INTO timers(name, note, start) VALUES (?, ?, ?) ',
-                (self.name, self.note, self._roundTime(datetime.utcnow())))
+            groupId = self._findGroupId(self.group) if self.group else -1
+
+            # If row is not None and groupId is still -1, we need to create this group
+            if (self.group and groupId == -1):
+                self.conn.execute('''INSERT INTO groups(name)
+                        VALUES (?)''', self.group)
+                groupId = self._findGroupId(self.group)
+
+            self.conn.execute('''INSERT INTO timers(name, note, start, group_id)
+                VALUES (?, ?, ?, ?) ''', (self.name, self.note,
+                    self._roundTime(datetime.utcnow()), groupId))
 
     def _endTimer(self):
         with self.conn:
-            self.conn.execute('UPDATE timers SET end = ? WHERE name LIKE ? AND end IS NULL',
+            self.conn.execute('''UPDATE timers SET end = ?
+                WHERE name LIKE ? AND end IS NULL''',
                 (self._roundTime(datetime.utcnow()), self.name))
 
     def _showTimer(self):
@@ -59,7 +70,8 @@ class PyTimer:
             params.append(self.name)
 
         for row in self.conn.execute(query, params):
-            formattedStart = row['start'].replace(tzinfo=tz.UTC).astimezone(tz.Local).strftime('%x %H:%M')
+            utc = row['start'].replace(tzinfo=tz.UTC)
+            formattedStart = utc.astimezone(tz.Local).strftime('%x %H:%M')
             end = row['end'] if row['end'] else datetime.utcnow()
             duration = self._roundTime(end - row['start'])
             print('%s(%d): %s %s %s'
@@ -68,8 +80,15 @@ class PyTimer:
 
     def _editTimer(self):
         with self.conn:
-            self.conn.execute('UPDATE timers SET note = ?, start = ?, end = ? WHERE name LIKE ?',
+            self.conn.execute('''UPDATE timers SET note = ?,
+                start = ?, end = ? WHERE name LIKE ?''',
                 (self.note, self.start, self.end, self.name))
+
+    def _assignGroup(self):
+        with self.conn:
+            self.conn.execute('''UPDATE groups SET project_id = ?,
+                ticket_id = ? WHERE name LIKE ?''',
+                (self.project, self.ticket, self.name))
 
     def _noOp(self):
         print('There is no defined operation for the command %s.' % self.op)
@@ -77,9 +96,24 @@ class PyTimer:
     def _initDB(self):
         with self.conn:
             self.conn.execute(
-            '''CREATE TABLE IF NOT EXISTS timers
+            '''
+            CREATE TABLE IF NOT EXISTS timers
+                (id integer PRIMARY KEY AUTOINCREMENT, group_id integer,
+                name text NOT NULL, note text, start timestamp, end timestamp);
+
+            CREATE TABLE IF NOT EXISTS groups
                 (id integer PRIMARY KEY AUTOINCREMENT, name text NOT NULL,
-                    note text, start timestamp, end timestamp) ''')
+                 project_id integer, ticket_id integer);
+            ''')
+
+    def _findGroupId(self, group):
+        groupId = -1
+        curs = self.conn.execute('''SELECT id FROM groups
+                WHERE name LIKE ?''', group)
+        row = curs.fetchone()
+        if (row):
+            groupId = row[0]
+        return groupId
 
     def _roundTime(dt=None, roundTo=60):
         if dt == None:
@@ -103,6 +137,7 @@ def main():
     parser_start = subparsers.add_parser('start', help='Start a timer')
     parser_start.add_argument('name', help='Name of the timer to be created')
     parser_start.add_argument('-n', '--note', help='An optional note for this timer')
+    parser_start.add_argument('-g', '--group', help='An optional group name')
 
     parser_end = subparsers.add_parser('end', help='End a currently running timer')
     parser_end.add_argument('name', help='Name of the timer to be stopped')
@@ -116,6 +151,12 @@ def main():
     parser_edit.add_argument('-n', '--note', help='Note to set for this timer')
     parser_edit.add_argument('-s', '--start', type=parseTime, help='Start date to set for this timer')
     parser_edit.add_argument('-e', '--end', type=parseTime, help='Duration to set for this timer')
+    parser_edit.add_argument('-g', '--group', help='Group name to set this timer to')
+
+    parser_assign = subparsers.add_parser('assign', help='Assign a group to a ticket')
+    parser_assign.add_argument('name', help='Group to assign a ticket')
+    parser_assign.add_argument('project', help='Project id to assign group to')
+    parser_assign.add_argument('ticket', help='Ticket id to assign group to')
 
     config = parser.parse_args()
 
