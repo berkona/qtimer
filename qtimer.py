@@ -118,6 +118,7 @@ class QTimer:
 
     def _find(self):
         {
+            "groups": self._findGroups,
             "timers": self._findTimers,
             "tickets": self._findTickets,
             "projects": self._findProjects
@@ -203,12 +204,33 @@ class QTimer:
         # print(formatted)
 
         for row in self.conn.execute(formatted, params):
-            print(formatStr % (row['id'], row['project_name']))
+            print(formatStr % (row['id'], row['name']))
 
-    def _noOp(self, op=None):
-        if not op:
-            op = self.op
-        raise RuntimeError('There is no defined operation for the command %s.' % op)
+    def _findGroups(self):
+        self._syncProjects()
+        query = '''
+            SELECT id, name FROM groups g
+        '''
+        formatStr = '#%d - %s'
+        where = []
+        params = []
+
+        if self.name:
+            where.append('name LIKE ?')
+            params.append('%' + self.name + '%')
+
+        if self.id:
+            where.append('id = %d' % self.id)
+
+        formatted = self._formatSelect(query, where) + ' ORDER BY id ASC'
+
+        # print(formatted)
+
+        for row in self.conn.execute(formatted, params):
+            print(formatStr % (row['id'], row['name']))
+
+    def _noOp(self):
+        raise RuntimeError(strings['no_op'])
 
     def _initDB(self):
         needsSchemaUpgrade = not path.exists(self.dataPath)
@@ -220,9 +242,7 @@ class QTimer:
 
         for row in self.conn.execute('pragma foreign_keys'):
             if (row and not row[0]):
-                raise RuntimeError(
-                    'Cannot enable foreign keys, platform sqlite3 version ' + sqlite3.sqlite_version
-                )
+                raise RuntimeError(strings['no_fk'] % sqlite3.sqlite_version)
 
         if not needsSchemaUpgrade:
             curs = self.conn.execute('''SELECT max(sync_date) as
@@ -235,7 +255,7 @@ class QTimer:
             self.lastSynced = row[0]
             return
 
-        print('Creating new database for schema version: ', DB_VERSION)
+        print(strings['new_db'] % DB_VERSION)
         with self.conn:
             with open(self.schemaPath, 'rt') as f:
                 schema = f.read()
@@ -257,9 +277,7 @@ class QTimer:
 
     def _syncProjects(self):
         if self.url == None or self.token == None or self.cacheFunction == None:
-            raise RuntimeError(
-                'Either url, token, or accountType is NULL, check config file'
-            )
+            raise RuntimeError(strings['bad_config'])
 
         lifetime = timedelta(minutes=self.cacheLifetime)
 
@@ -268,7 +286,7 @@ class QTimer:
         #    ', configured lifetime: ', lifetime)
 
         if not self.lastSynced or datetime.utcnow() - self.lastSynced > lifetime:
-            print('Cached remote info is too old, reloading from ' + self.url)
+            print(strings['old_data'] % self.url)
             self.cacheFunction()
 
         self.lastSync = datetime.utcnow()
@@ -305,8 +323,9 @@ class QTimer:
 
     def _findGroupId(self, group):
         groupId = 1  # This is the 'None' group
-        curs = self.conn.execute('''SELECT id FROM groups
-                WHERE name LIKE ?''', [group])
+        curs = self.conn.execute('''
+            SELECT id FROM groups WHERE name LIKE ?
+        ''', [group])
         row = curs.fetchone()
         if (row):
             groupId = row[0]
@@ -336,35 +355,41 @@ def parseArgs():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(title=strings['command_title'], dest='op',)
 
-    parser_start = subparsers.add_parser('start', help=strings['command_start'])
-    parser_start.add_argument('name', help=strings['command_start_name'])
+    parser_named = argparse.ArgumentParser(add_help=False)
+    parser_named.add_argument('name', help=strings['command_name'])
+
+    parser_start = subparsers.add_parser('start',  parents=[parser_named],
+        help=strings['command_start'])
+
     parser_start.add_argument('-n', '--note', help=strings['command_start_note'])
     parser_start.add_argument('-g', '--group', help=strings['command_start_group'])
 
-    parser_end = subparsers.add_parser('end', help='End a currently running timer')
-    parser_end.add_argument('name', help='Name of the timer to be stopped')
+    subparsers.add_parser('end', parents=[parser_named],
+        help=strings['command_end'])
 
-    parser_edit = subparsers.add_parser('edit', help='Edit a stopped timer')
-    parser_edit.add_argument('name', help='Specify a timer to show details about')
-    parser_edit.add_argument('-n', '--note', help='Note to set for this timer')
-    parser_edit.add_argument('-s', '--start', type=parseTime, help='Start date to set for this timer')
-    parser_edit.add_argument('-e', '--end', type=parseTime, help='Duration to set for this timer')
-    parser_edit.add_argument('-g', '--group', help='Group name to set this timer to')
+    parser_edit = subparsers.add_parser('edit', parents=[parser_named],
+        help=strings['command_edit'])
 
-    parser_assign = subparsers.add_parser('assign', help='Assign a group to a ticket')
-    parser_assign.add_argument('name', help='Group name to use to find group')
-    parser_assign.add_argument('project', help='Project id to assign group to')
-    parser_assign.add_argument('ticket', help='Ticket id to assign group to')
+    parser_edit.add_argument('-n', '--note', help=strings['command_edit_note'])
+    parser_edit.add_argument('-s', '--start', type=parseTime,
+        help=strings['command_edit_start'])
+    parser_edit.add_argument('-e', '--end', type=parseTime,
+        help=strings['command_edit_end'])
+    parser_edit.add_argument('-g', '--group', help=strings['command_edit_group'])
 
-    subparsers.add_parser('show', help='List all running timers')
+    parser_assign = subparsers.add_parser('assign', parents=[parser_named],
+        help=strings['command_assign'])
+    parser_assign.add_argument('project', help=strings['command_assign_project'])
+    parser_assign.add_argument('ticket', help=strings['command_assign_ticket'])
 
-    parser_find = subparsers.add_parser('find',
-        help='Show details about objects in database')
+    subparsers.add_parser('show', help=strings['commmand_show'])
+
+    parser_find = subparsers.add_parser('find', help=strings['command_find'])
 
     common_find_parser = argparse.ArgumentParser(add_help=False)
-    common_find_parser.add_argument('-n', '--name',
-        help='Specify a timer to show details about')
-    common_find_parser.add_argument('-i', '--id', type=int, help='Find a specific id')
+    common_find_parser.add_argument('-n', '--name', help=strings['command_find_name'])
+    common_find_parser.add_argument('-i', '--id', type=int,
+        help=strings['command_find_id'])
 
     subparser_find = parser_find.add_subparsers(dest='type',
         title='What type of object should we look for')
@@ -372,19 +397,20 @@ def parseArgs():
     parsers_find_timers = subparser_find.add_parser('timers',
         parents=[common_find_parser])
     parsers_find_timers.add_argument('-g', '--group',
-        help='Show timers from a specific group')
+        help=strings['command_find_group'])
 
     parsers_find_tickets = subparser_find.add_parser('tickets',
         parents=[common_find_parser])
     parsers_find_tickets.add_argument('-p', '--project',
-        help='Find tickets in a project')
+        help=strings['command_find_project'])
 
     subparser_find.add_parser('projects', parents=[common_find_parser])
+    subparser_find.add_parser('groups', parents=[common_find_parser])
 
     config = vars(parser.parse_args())
     if not config['op']:
         parser.print_help()
-        raise RuntimeError('No operation defined')
+        raise RuntimeError(strings['no_op'])
 
     return config
 
