@@ -50,11 +50,15 @@ class QTimer:
             with self.conn:
                 self.conn.execute('''INSERT INTO groups(name)
                     VALUES (?)''', [self.group])
-            groupId = sqlite3.lastrowid
+            groupId = self.conn.lastrowid
+
+        query = '''
+            INSERT INTO timers(name, note, start, group_id)
+                VALUES (?, ?, ?, ?)
+        '''
 
         with self.conn:
-            self.conn.execute('''INSERT INTO timers(name, note, start, group_id)
-                VALUES (?, ?, ?, ?) ''', (self.name, self.note,
+            self.conn.execute(query, (self.name, self.note,
                     self._roundTime(datetime.utcnow()), groupId))
 
         self.name = None
@@ -62,9 +66,12 @@ class QTimer:
         self._showTimer()
 
     def _endTimer(self):
+        query = '''
+            UPDATE timers SET end = ? WHERE name LIKE ? AND end IS NULL
+        '''
+
         with self.conn:
-            self.conn.execute('''UPDATE timers SET end = ?
-                WHERE name LIKE ? AND end IS NULL''',
+            self.conn.execute(query,
                 (self._roundTime(datetime.utcnow()), self.name))
 
         self.name = None
@@ -102,10 +109,11 @@ class QTimer:
             self.conn.execute(query, params)
 
     def _assignGroup(self):
+        query = '''
+            UPDATE groups SET project_id = ?, ticket_id = ? WHERE name LIKE ?
+        '''
         with self.conn:
-            self.conn.execute('''UPDATE groups SET project_id = ?,
-                ticket_id = ? WHERE name LIKE ?''',
-                (self.project, self.ticket, self.name))
+            self.conn.execute(query, (self.project, self.ticket, self.name))
 
     def _find(self):
         {
@@ -170,9 +178,7 @@ class QTimer:
     def _findProjects(self):
         self._syncProjects()
         query = '''
-            SELECT p.id as id, NULL as ticket_name,
-                p.name as project_name
-            FROM projects p
+            SELECT p.id as id, p.name as project_name FROM projects p
         '''
         formatStr = '#%d - %s'
         where = []
