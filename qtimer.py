@@ -1,15 +1,17 @@
 #! /usr/bin/env python
 
-# import freshbooks
+# Plugin imports
+from lib.activecollab.library import ACRequest
+import lib.freshbooks as freshbooks
+
 import argparse
 import configparser
 import sqlite3
-from strings import strings
 import tz
 
-from activecollab.library import ACRequest
 from datetime import datetime, timedelta
 from os import path, makedirs
+from strings import strings
 
 DB_VERSION = 21
 CONFIG_NAME = 'qtimer.cfg'
@@ -318,8 +320,17 @@ class QTimer:
                             project['id'], ticket['name']))
 
     def _syncProjectsFB(self):
-        # TODO
-        pass
+        freshbooks.setup('YOU.freshbooks.com', '<YOUR AUTH TOKEN>')
+        clients = freshbooks.Client.list()
+        client_1 = freshbooks.Client.get(<client_id>)
+
+        # update data
+        changed_client = freshbooks.Client()
+        changed_client.client_id = client_1.client_id
+        changed_client.first_name = u'Jane'
+        r = freshbooks.call_api('client.update', changed_client)
+        assert(r.success)
+
 
     def _findGroupId(self, group):
         groupId = 1  # This is the 'None' group
