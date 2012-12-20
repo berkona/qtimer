@@ -50,7 +50,7 @@ class QTimer:
             with self.conn:
                 self.conn.execute('''INSERT INTO groups(name)
                     VALUES (?)''', [self.group])
-            groupId = self._findGroupId(self.group)
+            groupId = sqlite3.lastrowid
 
         with self.conn:
             self.conn.execute('''INSERT INTO timers(name, note, start, group_id)
