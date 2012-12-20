@@ -4,7 +4,7 @@
 import argparse
 import configparser
 import sqlite3
-from strings import STRINGS
+from strings import strings
 import tz
 
 from activecollab.library import ACRequest
@@ -141,6 +141,9 @@ class QTimer:
             where.append('g.name LIKE ?')
             params.append('%' + self.group + '%')
 
+        if self.id:
+            where.append('t.id = %d' % self.id)
+
         formatted = self._formatSelect(query, where)
 
         # print(formatted)
@@ -167,6 +170,9 @@ class QTimer:
             where.append('project_name LIKE ?')
             params.append('%' + self.project + '%')
 
+        if self.id:
+            where.append('t.id = %d' % self.id)
+
         formatted = self._formatSelect(query, where) \
             + ' ORDER BY project_id ASC, ticket_id ASC'
 
@@ -188,6 +194,9 @@ class QTimer:
         if self.name:
             where.append('project_name LIKE ?')
             params.append('%' + self.name + '%')
+
+        if self.id:
+            where.append('id = %d' % self.id)
 
         formatted = self._formatSelect(query, where) + ' ORDER BY id ASC'
 
@@ -248,7 +257,9 @@ class QTimer:
 
     def _syncProjects(self):
         if self.url == None or self.token == None or self.cacheFunction == None:
-            raise RuntimeError('Either url, token, or accountType is NULL, check config file')
+            raise RuntimeError(
+                'Either url, token, or accountType is NULL, check config file'
+            )
 
         lifetime = timedelta(minutes=self.cacheLifetime)
 
@@ -323,12 +334,12 @@ def formatTime(datetime):
 
 def parseArgs():
     parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(title='Available commands', dest='op',)
+    subparsers = parser.add_subparsers(title=strings['command_title'], dest='op',)
 
-    parser_start = subparsers.add_parser('start', help='Start a timer')
-    parser_start.add_argument('name', help='Name of the timer to be created')
-    parser_start.add_argument('-n', '--note', help='An optional note for this timer')
-    parser_start.add_argument('-g', '--group', help='An optional group name')
+    parser_start = subparsers.add_parser('start', help=strings['command_start'])
+    parser_start.add_argument('name', help=strings['command_start_name'])
+    parser_start.add_argument('-n', '--note', help=strings['command_start_note'])
+    parser_start.add_argument('-g', '--group', help=strings['command_start_group'])
 
     parser_end = subparsers.add_parser('end', help='End a currently running timer')
     parser_end.add_argument('name', help='Name of the timer to be stopped')
@@ -349,27 +360,41 @@ def parseArgs():
 
     parser_find = subparsers.add_parser('find',
         help='Show details about objects in database')
-    parser_find.add_argument('-n', '--name',
+
+    common_find_parser = argparse.ArgumentParser(add_help=False)
+    common_find_parser.add_argument('-n', '--name',
         help='Specify a timer to show details about')
-    parser_find.add_argument('type', choices=['timers', 'tickets', 'projects'],
-        help='What type of object should we look for')
-    parser_find.add_argument('-p', '--project',
-        help='Find tickets in a project')
-    parser_find.add_argument('-g', '--group',
+    common_find_parser.add_argument('-i', '--id', type=int, help='Find a specific id')
+
+    subparser_find = parser_find.add_subparsers(dest='type',
+        title='What type of object should we look for')
+
+    parsers_find_timers = subparser_find.add_parser('timers',
+        parents=[common_find_parser])
+    parsers_find_timers.add_argument('-g', '--group',
         help='Show timers from a specific group')
 
-    return (parser, vars(parser.parse_args()))
+    parsers_find_tickets = subparser_find.add_parser('tickets',
+        parents=[common_find_parser])
+    parsers_find_tickets.add_argument('-p', '--project',
+        help='Find tickets in a project')
+
+    subparser_find.add_parser('projects', parents=[common_find_parser])
+
+    config = vars(parser.parse_args())
+    if not config['op']:
+        parser.print_help()
+        raise RuntimeError('No operation defined')
+
+    return config
 
 
 def main():
-    parser = None
     config = None
 
-    parser, config = parseArgs()
-
-    # Check that we have a task to do
-    if not config['op']:
-        parser.print_help()
+    try:
+        config = parseArgs()
+    except RuntimeError:
         return -1
 
     configRoot = path.expanduser('~/.qtimer')
