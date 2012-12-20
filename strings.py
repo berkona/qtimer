@@ -19,6 +19,7 @@ strings = {
     'command_find_id': 'Find a specific id',
     'command_find_group': 'Show timers from a specific group',
     'command_find_project': 'Find tickets in a project',
+    'command_post': 'Post a timer to the configured remote source',
 
     'new_db': 'Creating new database for schema version: %d',
     'old_data': 'Cached remote info is too old, reloading from %s',

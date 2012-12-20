@@ -13,9 +13,9 @@ from datetime import datetime, timedelta
 from os import path, makedirs
 from strings import strings
 
-DB_VERSION = 21
+DB_VERSION = 22
 CONFIG_NAME = 'qtimer.cfg'
-SCHEMA_SCRIPT = 'qtimer.schema.sql'
+SCHEMA_SCRIPT = 'schema.sql'
 DATA_NAME = 'timers v%d.db' % DB_VERSION
 
 
@@ -28,7 +28,7 @@ class QTimer:
         self.cacheFunction = {
             'activecollab': self._syncProjectsAC,
             'freshbooks': self._syncProjectsFB
-        }.get(self.accountType, None)
+        }.get(self.accountType, self._noOp)
 
     def run(self):
         try:
@@ -417,6 +417,10 @@ def parseArgs():
 
     subparser_find.add_parser('projects', parents=[common_find_parser])
     subparser_find.add_parser('groups', parents=[common_find_parser])
+
+    parser_post = subparsers.add_parser('post', parents=[common_find_parser],
+        help=string['command_post'])
+    parser_post.add_argument('-g', '--group', help=strings['command_find_group'])
 
     config = vars(parser.parse_args())
     if not config['op']:
