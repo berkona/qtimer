@@ -1,8 +1,8 @@
 #! /usr/bin/env python
 
 # Plugin imports
-from lib.activecollab.library import ACRequest
-import lib.freshbooks as freshbooks
+from plugins.activecollab.library import ACRequest
+import plugins.freshbooks as freshbooks
 
 import argparse
 import configparser
