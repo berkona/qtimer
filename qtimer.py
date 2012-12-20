@@ -10,7 +10,7 @@ from activecollab.library import ACRequest
 from datetime import datetime, timedelta
 from os import path, makedirs
 
-DB_VERSION = 6
+DB_VERSION = 21
 CONFIG_NAME = 'qtimer.cfg'
 SCHEMA_SCRIPT = 'qtimer.schema.sql'
 DATA_NAME = 'timers v%d.db' % DB_VERSION
@@ -21,6 +21,7 @@ class QTimer:
         for n, v in config.items():
             setattr(self, n, v)
 
+        self.lastSynced = None
         self.cacheFunction = {
             'activecollab': self._syncProjectsAC,
             'freshbooks': self._syncProjectsFB
@@ -35,24 +36,30 @@ class QTimer:
                 'show': self._showTimer,
                 'edit': self._editTimer,
                 'assign': self._assignGroup,
-                'find': self._findProject
+                'find': self._find
             }.get(self.op, self._noOp)()
         finally:
             self.conn.close()
 
     def _startTimer(self):
-        with self.conn:
-            groupId = self._findGroupId(self.group) if self.group else -1
+        # Set 'None' group by default
+        groupId = self._findGroupId(self.group) if self.group else 1
 
-            # If row is not None and groupId is still -1, we need to create this group
-            if (self.group and groupId == -1):
+        # If group is not None and groupId is still 1, we need to create this group
+        if (self.group and groupId == 1):
+            with self.conn:
                 self.conn.execute('''INSERT INTO groups(name)
-                        VALUES (?)''', [self.group])
-                groupId = self._findGroupId(self.group)
+                    VALUES (?)''', [self.group])
+            groupId = self._findGroupId(self.group)
 
+        with self.conn:
             self.conn.execute('''INSERT INTO timers(name, note, start, group_id)
                 VALUES (?, ?, ?, ?) ''', (self.name, self.note,
                     self._roundTime(datetime.utcnow()), groupId))
+
+        self.name = None
+        self.showAll = False
+        self._showTimer()
 
     def _endTimer(self):
         with self.conn:
@@ -60,33 +67,39 @@ class QTimer:
                 WHERE name LIKE ? AND end IS NULL''',
                 (self._roundTime(datetime.utcnow()), self.name))
 
+        self.name = None
+        self.showAll = False
+        self._showTimer()
+
     def _showTimer(self):
-        query = 'SELECT id, name, note, start, end FROM timers'
-        where = []
-        params = list()
-        if not self.showAll:
-            where.append('end IS NULL')
+        query = '''
+            SELECT t.id as id, g.name as group_name,
+                t.name as name, note, start, end
+            FROM timers t JOIN groups g ON t.group_id = g.id
+                WHERE end IS NULL
+        '''
 
-        if (self.name != '*'):
-            where.append('name LIKE ?')
-            params.append(self.name)
-
-        if (where):
-            query = query + ' WHERE ' + ' AND '.join(where)
-
-        for row in self.conn.execute(query, params):
-            formattedStart = formatTime(row['start'])
-            end = row['end'] if row['end'] else datetime.utcnow()
-            duration = self._roundTime(end - row['start'])
-            print('%s(%d): %s %s %s'
-                % (row['name'], row['id'], formattedStart, duration,
-                    row['note'] if row['note'] else ''))
+        for row in self.conn.execute(query):
+            print(self._formatTimer(row))
 
     def _editTimer(self):
+        values = []
+        params = []
+        if (self.note):
+            values.append('note = ?')
+            params.append(self.note)
+        if (self.start):
+            values.append('start = ?')
+            params.append(self.start)
+        if (self.end):
+            values.append('end = ?')
+            params.append(self.end)
+
+        params.append(self.name)
+
+        query = 'UPDATE timers SET %s WHERE name LIKE ?' % ', '.join(values)
         with self.conn:
-            self.conn.execute('''UPDATE timers SET note = ?,
-                start = ?, end = ? WHERE name LIKE ?''',
-                (self.note, self.start, self.end, self.name))
+            self.conn.execute(query, params)
 
     def _assignGroup(self):
         with self.conn:
@@ -94,20 +107,92 @@ class QTimer:
                 ticket_id = ? WHERE name LIKE ?''',
                 (self.project, self.ticket, self.name))
 
-    def _findProject(self):
-        self._syncProjects()
-        if (self.type == 'projects'):
-            # Do stuff for projects here
-            pass
-        elif (self.type == 'tickets'):
-            # Do stuff for tickets here
-            pass
-        else:
-            # Do stuff for searching both here
-            pass
+    def _find(self):
+        {
+            "timers": self._findTimers,
+            "tickets": self._findTickets,
+            "projects": self._findProjects
+        }.get(self.type, self._noOp)()
 
-    def _noOp(self):
-        print('There is no defined operation for the command %s.' % self.op)
+    def _findTimers(self):
+        query = '''
+            SELECT t.id as id, g.name as group_name,
+                t.name as name, note, start, end
+            FROM timers t JOIN groups g ON t.group_id = g.id
+        '''
+
+        where = []
+        params = []
+
+        if self.name:
+            where.append('t.name LIKE ?')
+            params.append('%' + self.name + '%')
+
+        if self.group:
+            where.append('g.name LIKE ?')
+            params.append('%' + self.group + '%')
+
+        formatted = self._formatSelect(query, where)
+
+        # print(formatted)
+
+        for row in self.conn.execute(formatted, params):
+            print(self._formatTimer(row))
+
+    def _findTickets(self):
+        self._syncProjects()
+        query = '''
+            SELECT t.id as id, t.ticket_id as ticket_id, t.name as ticket_name,
+                p.name as project_name
+            FROM tickets t INNER JOIN projects p ON t.project_id = p.id
+        '''
+        formatStr = '#%d (%d) - %s (%s)'
+        where = []
+        params = []
+
+        if self.name:
+            where.append('ticket_name LIKE ?')
+            params.append('%' + self.name + '%')
+
+        if self.project:
+            where.append('project_name LIKE ?')
+            params.append('%' + self.project + '%')
+
+        formatted = self._formatSelect(query, where) \
+            + ' ORDER BY project_id ASC, ticket_id ASC'
+
+        # print(formatted)
+
+        for row in self.conn.execute(formatted, params):
+            print(formatStr % (row['id'], row['ticket_id'],
+                row['ticket_name'], row['project_name']))
+
+    def _findProjects(self):
+        self._syncProjects()
+        query = '''
+            SELECT p.id as id, NULL as ticket_name,
+                p.name as project_name
+            FROM projects p
+        '''
+        formatStr = '#%d - %s'
+        where = []
+        params = []
+
+        if self.name:
+            where.append('project_name LIKE ?')
+            params.append('%' + self.name + '%')
+
+        formatted = self._formatSelect(query, where) + ' ORDER BY id ASC'
+
+        # print(formatted)
+
+        for row in self.conn.execute(formatted, params):
+            print(formatStr % (row['id'], row['project_name']))
+
+    def _noOp(self, op=None):
+        if not op:
+            op = self.op
+        raise RuntimeError('There is no defined operation for the command %s.' % op)
 
     def _initDB(self):
         needsSchemaUpgrade = not path.exists(self.dataPath)
@@ -115,6 +200,13 @@ class QTimer:
         self.conn = sqlite3.connect(self.dataPath,
             detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute('pragma foreign_keys=ON')
+
+        for row in self.conn.execute('pragma foreign_keys'):
+            if (row and not row[0]):
+                raise RuntimeError(
+                    'Cannot enable foreign keys, platform sqlite3 version ' + sqlite3.sqlite_version
+                )
 
         if not needsSchemaUpgrade:
             curs = self.conn.execute('''SELECT max(sync_date) as
@@ -129,21 +221,36 @@ class QTimer:
 
         print('Creating new database for schema version: ', DB_VERSION)
         with self.conn:
-            with open(self.scriptPath, 'rt') as f:
+            with open(self.schemaPath, 'rt') as f:
                 schema = f.read()
             self.conn.executescript(schema)
 
+    def _formatSelect(self, query, where):
+        output = query
+        if (where):
+            output += ' WHERE ' + ' AND '.join(where)
+        return output
+
+    def _formatTimer(self, row):
+        formattedStart = formatTime(row['start'])
+        end = row['end'] if row['end'] else datetime.utcnow()
+        duration = self._roundTime(end - row['start'])
+        return '#%d %s (%s): %s - %s %s' % (row['id'], row['name'],
+            row['group_name'], formattedStart, duration,
+            row['note'] if row['note'] else '')
+
     def _syncProjects(self):
-        if (self.url == None or self.token == None or self.cacheFunction == None):
+        if self.url == None or self.token == None or self.cacheFunction == None:
             raise RuntimeError('Either url, token, or accountType is NULL, check config file')
 
-        lifetime = timedelta(hours=self.cacheLifetime)
+        lifetime = timedelta(minutes=self.cacheLifetime)
 
         # print('Last Synced: ', formatTime(self.lastSynced),
         #    ', time elapsed: ', delta,
         #    ', configured lifetime: ', lifetime)
 
-        if (not self.lastSynced or datetime.utcnow() - self.lastSynced > lifetime):
+        if not self.lastSynced or datetime.utcnow() - self.lastSynced > lifetime:
+            print('Cached remote info is too old, reloading from ' + self.url)
             self.cacheFunction()
 
         self.lastSync = datetime.utcnow()
@@ -151,6 +258,7 @@ class QTimer:
     def _syncProjectsAC(self):
         with self.conn:
             req = ACRequest('projects', ac_url=self.url, api_key=self.token)
+            # print(req.command_url)
             for project in req.execute():
                 # print(project)
                 self.conn.execute('''
@@ -163,15 +271,16 @@ class QTimer:
                 for ticket in req.execute():
                     # print(ticket)
                     self.conn.execute('''
-                        INSERT OR REPLACE INTO tickets(id, project_id, name)
-                            VALUES (?, ?, ?)
-                    ''', (ticket['ticket_id'], project['id'], ticket['name']))
+                        INSERT OR REPLACE INTO tickets(id, ticket_id, project_id, name)
+                            VALUES (?, ?, ?, ?)
+                    ''', (ticket['id'], ticket['ticket_id'],
+                            project['id'], ticket['name']))
 
     def _syncProjectsFB(self):
         pass
 
     def _findGroupId(self, group):
-        groupId = -1
+        groupId = 1  # This is the 'None' group
         curs = self.conn.execute('''SELECT id FROM groups
                 WHERE name LIKE ?''', [group])
         row = curs.fetchone()
@@ -211,11 +320,6 @@ def parseArgs():
     parser_end = subparsers.add_parser('end', help='End a currently running timer')
     parser_end.add_argument('name', help='Name of the timer to be stopped')
 
-    parser_show = subparsers.add_parser('show', help='List all running timers')
-    parser_show.add_argument('name', nargs='?', default='*', help='Specify a timer to show details about')
-    parser_show.add_argument('-a', '--all', dest='showAll', action='store_true', default=False,
-        help='Show all timers.  The default behaviour is to show only running timers')
-
     parser_edit = subparsers.add_parser('edit', help='Edit a stopped timer')
     parser_edit.add_argument('name', help='Specify a timer to show details about')
     parser_edit.add_argument('-n', '--note', help='Note to set for this timer')
@@ -224,14 +328,22 @@ def parseArgs():
     parser_edit.add_argument('-g', '--group', help='Group name to set this timer to')
 
     parser_assign = subparsers.add_parser('assign', help='Assign a group to a ticket')
-    parser_assign.add_argument('name', help='Group to assign a ticket')
+    parser_assign.add_argument('name', help='Group name to use to find group')
     parser_assign.add_argument('project', help='Project id to assign group to')
     parser_assign.add_argument('ticket', help='Ticket id to assign group to')
 
-    parser_projects = subparsers.add_parser('find', help='Show details about projects')
-    parser_projects.add_argument('name', help='Name to search for')
-    parser_projects.add_argument('-t', '--type', default='*', choices=['*', 'ticket', 'project'],
-        help='If we should look for projects, tickets or both (defaults to both)')
+    subparsers.add_parser('show', help='List all running timers')
+
+    parser_find = subparsers.add_parser('find',
+        help='Show details about objects in database')
+    parser_find.add_argument('-n', '--name',
+        help='Specify a timer to show details about')
+    parser_find.add_argument('type', choices=['timers', 'tickets', 'projects'],
+        help='What type of object should we look for')
+    parser_find.add_argument('-p', '--project',
+        help='Find tickets in a project')
+    parser_find.add_argument('-g', '--group',
+        help='Show timers from a specific group')
 
     return (parser, vars(parser.parse_args()))
 
@@ -267,7 +379,7 @@ def main():
         'accountType': userConfig['account']['type'],
         'url': userConfig['account']['url'],
         'token': userConfig['account']['token'],
-        'cacheLifetime': userConfig['account']['cache_lifetime'],
+        'cacheLifetime': int(userConfig['account']['cache_lifetime']),
     })
 
     QTimer(config).run()

@@ -1,29 +1,36 @@
-create table timers (
-	id integer primary key autoincrement,
-	group_id integer,
-	name text not null,
-	note text,
-	start timestamp,
-	end timestamp
+CREATE TABLE timers (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL,
+	note TEXT DEFAULT NULL,
+	start TIMESTAMP DEFAULT NULL,
+	end TIMESTAMP DEFAULT NULL,
+	group_id INTEGER DEFAULT 1,
+	FOREIGN KEY(group_id) REFERENCES groups(id)
 );
 
-
-create table groups (
-	id integer primary key autoincrement,
-	name text not null,
-    project_id integer,
-    ticket_id integer
+CREATE TABLE groups (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL,
+	project_id INTEGER DEFAULT NULL,
+	ticket_id INTEGER DEFAULT NULL,
+    FOREIGN KEY(project_id) REFERENCES projects(id),
+    FOREIGN KEY(ticket_id) REFERENCES tickets(id)
 );
 
-create table projects (
-	id integer primary key,
-	name text not null,
-    sync_date timestamp default current_timestamp
+CREATE TABLE projects (
+	id INTEGER PRIMARY KEY,
+	name TEXT NOT NULL,
+    sync_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-create table tickets (
-	id integer primary key,
-	project_id integer,
-	name text not null,
-	sync_date timestamp default current_timestamp
+CREATE TABLE tickets (
+	id INTEGER PRIMARY KEY,
+	ticket_id INTEGER NOT NULL,
+	project_id INTEGER NOT NULL,
+	name TEXT NOT NULL,
+	sync_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	FOREIGN KEY(project_id) REFERENCES projects(id)
 );
+
+-- Default data follows
+INSERT INTO groups(id, name) VALUES (1, 'None');
