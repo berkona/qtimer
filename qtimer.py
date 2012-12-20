@@ -1,17 +1,23 @@
 #! /usr/bin/env python
 
-# Plugin imports
-from plugins.activecollab.library import ACRequest
-import plugins.freshbooks as freshbooks
+# System imports
+from datetime import datetime, timedelta
+from os import path, makedirs
 
 import argparse
 import configparser
 import sqlite3
+
+
+# Custom imports
+from strings import strings
 import tz
 
-from datetime import datetime, timedelta
-from os import path, makedirs
-from strings import strings
+
+# Plugin imports
+from plugins.activecollab.library import ACRequest
+import plugins.freshbooks as freshbooks
+
 
 DB_VERSION = 22
 CONFIG_NAME = 'qtimer.cfg'
