@@ -4,6 +4,7 @@
 import argparse
 import configparser
 import sqlite3
+from strings import STRINGS
 import tz
 
 from activecollab.library import ACRequest
@@ -262,27 +263,33 @@ class QTimer:
         self.lastSync = datetime.utcnow()
 
     def _syncProjectsAC(self):
+        projectInsert = '''
+            INSERT OR REPLACE INTO projects(id, name) VALUES (?, ?)
+        '''
+
+        ticketInsert = '''
+            INSERT OR REPLACE INTO tickets(id, ticket_id, project_id, name)
+                VALUES (?, ?, ?, ?)
+        '''
+
         with self.conn:
             req = ACRequest('projects', ac_url=self.url, api_key=self.token)
             # print(req.command_url)
             for project in req.execute():
                 # print(project)
-                self.conn.execute('''
-                    INSERT OR REPLACE INTO projects(id, name) VALUES (?, ?)
-                ''', (project['id'], project['name']))
+                self.conn.execute(projectInsert, (project['id'], project['name']))
 
                 req = ACRequest('projects', item_id=project['id'],
                     subcommand='tickets', ac_url=self.url, api_key=self.token)
 
                 for ticket in req.execute():
                     # print(ticket)
-                    self.conn.execute('''
-                        INSERT OR REPLACE INTO tickets(id, ticket_id, project_id, name)
-                            VALUES (?, ?, ?, ?)
-                    ''', (ticket['id'], ticket['ticket_id'],
+                    self.conn.execute(ticketInsert,
+                        (ticket['id'], ticket['ticket_id'],
                             project['id'], ticket['name']))
 
     def _syncProjectsFB(self):
+        # TODO
         pass
 
     def _findGroupId(self, group):
