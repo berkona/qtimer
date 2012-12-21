@@ -20,10 +20,18 @@ strings = {
     'command_find_group': 'Show timers from a specific group',
     'command_find_project': 'Find tickets in a project',
     'command_post': 'Post a timer to the configured remote source',
+    'command_refresh': 'Refresh configured remote source immediately',
 
     'new_db': 'Creating new database for schema version: %d',
-    'old_data': 'Cached remote info is too old, reloading from %s',
+    'old_data': 'Reloading cache from configured remote source: %s://%s',
     'bad_config': 'Either config file is invalid or does not exist',
     'no_op': 'There is no defined operation for this input',
     'no_fk': 'Cannot enable foreign keys, platform sqlite3 version %s',
+    'no_config': 'You must define a config file with an accountType, url and authentication token',
+
+    'debug_query': 'SQLite Query used:',
+
+    'groups_header': 'ID        Name',
+    'projects_header': 'ID        Name',
+    'tickets_header': 'Ticket ID - Ticket Name (Project ID - Project Name)',
 }

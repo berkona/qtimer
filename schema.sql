@@ -14,8 +14,7 @@ CREATE TABLE groups (
 	name TEXT NOT NULL,
 	project_id INTEGER DEFAULT NULL,
 	ticket_id INTEGER DEFAULT NULL,
-    FOREIGN KEY(project_id) REFERENCES projects(id),
-    FOREIGN KEY(ticket_id) REFERENCES tickets(id)
+    FOREIGN KEY(project_id) REFERENCES projects(id)
 );
 
 CREATE TABLE projects (

@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 # System imports
 from datetime import datetime, timedelta
@@ -15,11 +15,11 @@ import tz
 
 
 # Plugin imports
-from plugins.activecollab.library import ACRequest
-import plugins.freshbooks as freshbooks
+from activecollab.library import ACRequest
+# import plugins.freshbooks as freshbooks
 
 
-DB_VERSION = 22
+DB_VERSION = 27
 CONFIG_NAME = 'qtimer.cfg'
 SCHEMA_SCRIPT = 'schema.sql'
 DATA_NAME = 'timers v%d.db' % DB_VERSION
@@ -32,8 +32,8 @@ class QTimer:
 
         self.lastSynced = None
         self.cacheFunction = {
-            'activecollab': self._syncProjectsAC,
-            'freshbooks': self._syncProjectsFB
+            'activecollab': self._syncAC,
+            'freshbooks': self._syncFB
         }.get(self.accountType, self._noOp)
 
     def run(self):
@@ -45,7 +45,8 @@ class QTimer:
                 'show': self._showTimer,
                 'edit': self._editTimer,
                 'assign': self._assignGroup,
-                'find': self._find
+                'find': self._find,
+                'refresh': self._sync,
             }.get(self.op, self._noOp)()
         finally:
             self.conn.close()
@@ -57,9 +58,8 @@ class QTimer:
         # If group is not None and groupId is still 1, we need to create this group
         if (self.group and groupId == 1):
             with self.conn:
-                self.conn.execute('''INSERT INTO groups(name)
-                    VALUES (?)''', [self.group])
-            groupId = self.conn.lastrowid
+                groupId = self.conn.execute('''INSERT INTO groups(name)
+                    VALUES (?)''', [self.group]).lastrowid
 
         query = '''
             INSERT INTO timers(name, note, start, group_id)
@@ -161,13 +161,13 @@ class QTimer:
             print(self._formatTimer(row))
 
     def _findTickets(self):
-        self._syncProjects()
+        self._syncConditionally()
         query = '''
-            SELECT t.id as id, t.ticket_id as ticket_id, t.name as ticket_name,
+            SELECT p.id as project_id, t.ticket_id as ticket_id, t.name as ticket_name,
                 p.name as project_name
             FROM tickets t INNER JOIN projects p ON t.project_id = p.id
         '''
-        formatStr = '#%d (%d) - %s (%s)'
+        formatStr = '%d - %s (%d - %s)'
         where = []
         params = []
 
@@ -185,41 +185,31 @@ class QTimer:
         formatted = self._formatSelect(query, where) \
             + ' ORDER BY project_id ASC, ticket_id ASC'
 
-        # print(formatted)
-
+        rows = []
+        maxLen = 0
         for row in self.conn.execute(formatted, params):
-            print(formatStr % (row['id'], row['ticket_id'],
-                row['ticket_name'], row['project_name']))
+            rowStr = formatStr %  (row['ticket_id'], row['ticket_name'],
+                row['project_id'], row['project_name'])
+            length = len(rowStr)
+            if length > maxLen:
+                maxLen = length
+            rows.append(rowStr)
+
+        if self.verbose:
+            print(strings['debug_query'])
+            print(formatted.strip('\n '))
+            print()
+
+        print(strings['tickets_header'])
+        print('-' * (maxLen + 5))
+        print('\n'.join(rows))
 
     def _findProjects(self):
-        self._syncProjects()
+        self._syncConditionally()
         query = '''
-            SELECT p.id as id, p.name as project_name FROM projects p
+            SELECT p.id as id, p.name as name FROM projects p
         '''
-        formatStr = '#%d - %s'
-        where = []
-        params = []
-
-        if self.name:
-            where.append('project_name LIKE ?')
-            params.append('%' + self.name + '%')
-
-        if self.id:
-            where.append('id = %d' % self.id)
-
-        formatted = self._formatSelect(query, where) + ' ORDER BY id ASC'
-
-        # print(formatted)
-
-        for row in self.conn.execute(formatted, params):
-            print(formatStr % (row['id'], row['name']))
-
-    def _findGroups(self):
-        self._syncProjects()
-        query = '''
-            SELECT id, name FROM groups g
-        '''
-        formatStr = '#%d - %s'
+        formatStr = '%-10d%-10s'
         where = []
         params = []
 
@@ -232,8 +222,39 @@ class QTimer:
 
         formatted = self._formatSelect(query, where) + ' ORDER BY id ASC'
 
-        # print(formatted)
+        if self.verbose:
+            print(strings['debug_query'])
+            print(formatted.strip('\n '))
+            print()
 
+        print(strings['projects_header'])
+        for row in self.conn.execute(formatted, params):
+            print(formatStr % (row['id'], row['name']))
+
+    def _findGroups(self):
+        self._syncConditionally()
+        query = '''
+            SELECT id, name FROM groups g
+        '''
+        formatStr = '%-10d%-10s'
+        where = []
+        params = []
+
+        if self.name:
+            where.append('name LIKE ?')
+            params.append('%' + self.name + '%')
+
+        if self.id:
+            where.append('id = %d' % self.id)
+
+        formatted = self._formatSelect(query, where) + ' ORDER BY id ASC'
+
+        if self.verbose:
+            print(strings['debug_query'])
+            print(formatted.strip('\n '))
+            print()
+
+        print(strings['groups_header'])
         for row in self.conn.execute(formatted, params):
             print(formatStr % (row['id'], row['name']))
 
@@ -269,6 +290,8 @@ class QTimer:
                 schema = f.read()
             self.conn.executescript(schema)
 
+        self._sync()
+
     def _formatSelect(self, query, where):
         output = query
         if (where):
@@ -283,23 +306,21 @@ class QTimer:
             row['group_name'], formattedStart, duration,
             row['note'] if row['note'] else '')
 
-    def _syncProjects(self):
+    def _syncConditionally(self):
         if self.url == None or self.token == None or self.cacheFunction == None:
             raise RuntimeError(strings['bad_config'])
 
         lifetime = timedelta(minutes=self.cacheLifetime)
 
-        # print('Last Synced: ', formatTime(self.lastSynced),
-        #    ', time elapsed: ', delta,
-        #    ', configured lifetime: ', lifetime)
-
         if not self.lastSynced or datetime.utcnow() - self.lastSynced > lifetime:
-            print(strings['old_data'] % self.url)
-            self.cacheFunction()
+            self._sync()
 
+    def _sync(self):
+        print(strings['old_data'] % (self.accountType, self.url))
+        self.cacheFunction()
         self.lastSync = datetime.utcnow()
 
-    def _syncProjectsAC(self):
+    def _syncAC(self):
         projectInsert = '''
             INSERT OR REPLACE INTO projects(id, name) VALUES (?, ?)
         '''
@@ -325,18 +346,8 @@ class QTimer:
                         (ticket['id'], ticket['ticket_id'],
                             project['id'], ticket['name']))
 
-    def _syncProjectsFB(self):
-        freshbooks.setup('YOU.freshbooks.com', '<YOUR AUTH TOKEN>')
-        clients = freshbooks.Client.list()
-        client_1 = freshbooks.Client.get(<client_id>)
-
-        # update data
-        changed_client = freshbooks.Client()
-        changed_client.client_id = client_1.client_id
-        changed_client.first_name = u'Jane'
-        r = freshbooks.call_api('client.update', changed_client)
-        assert(r.success)
-
+    def _syncFB(self):
+        pass
 
     def _findGroupId(self, group):
         groupId = 1  # This is the 'None' group
@@ -370,6 +381,7 @@ def formatTime(datetime):
 
 def parseArgs():
     parser = argparse.ArgumentParser()
+
     subparsers = parser.add_subparsers(title=strings['command_title'], dest='op',)
 
     parser_named = argparse.ArgumentParser(add_help=False)
@@ -399,7 +411,7 @@ def parseArgs():
     parser_assign.add_argument('project', help=strings['command_assign_project'])
     parser_assign.add_argument('ticket', help=strings['command_assign_ticket'])
 
-    subparsers.add_parser('show', help=strings['commmand_show'])
+    subparsers.add_parser('show', help=strings['command_show'])
 
     parser_find = subparsers.add_parser('find', help=strings['command_find'])
 
@@ -425,8 +437,12 @@ def parseArgs():
     subparser_find.add_parser('groups', parents=[common_find_parser])
 
     parser_post = subparsers.add_parser('post', parents=[common_find_parser],
-        help=string['command_post'])
+        help=strings['command_post'])
     parser_post.add_argument('-g', '--group', help=strings['command_find_group'])
+
+    subparsers.add_parser('refresh', 
+        help=strings['command_refresh'])
+
 
     config = vars(parser.parse_args())
     if not config['op']:
@@ -453,12 +469,15 @@ def main():
 
     userConfig = configparser.ConfigParser()
     scriptRoot = path.dirname(path.realpath(__file__))
-    with open(path.join(scriptRoot, CONFIG_NAME)) as defaultFile:
+    with open(path.join(scriptRoot, 'default.cfg')) as defaultFile:
         userConfig.readfp(defaultFile)
 
+    if not path.exists(configPath):
+        raise RuntimeError(strings['no_config'])
     userConfig.read(configPath)
 
     config.update({
+        'verbose': userConfig['debug']['verbose'],
         'dataPath': dataPath,
         'schemaPath': path.join(scriptRoot, SCHEMA_SCRIPT),
         'accountType': userConfig['account']['type'],
