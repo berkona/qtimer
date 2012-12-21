@@ -11,6 +11,7 @@ import sqlite3
 
 # Custom imports
 from strings import strings
+import terminalsize
 import tz
 
 
@@ -163,20 +164,28 @@ class QTimer:
     def _findTickets(self):
         self._syncConditionally()
         query = '''
-            SELECT p.id as project_id, t.ticket_id as ticket_id, t.name as ticket_name,
-                p.name as project_name
+            SELECT p.id as project_id, t.ticket_id as ticket_id, 
+                t.name as ticket_name, p.name as project_name
             FROM tickets t INNER JOIN projects p ON t.project_id = p.id
         '''
-        formatStr = '%d - %s (%d - %s)'
+        maxQuery = '''
+            SELECT MAX(LENGTH(p.name)) as project_len, 
+                MAX(LENGTH(t.name)) as ticket_len
+            FROM tickets t INNER JOIN projects p on t.project_id = p.id
+        '''
+
+        formatStr = '%-5d %-*s %-5d %-*s'
+        headerStr = '%-5s %-*s %-5s %-*s'
+
         where = []
         params = []
 
         if self.name:
-            where.append('ticket_name LIKE ?')
+            where.append('t.name LIKE ?')
             params.append('%' + self.name + '%')
 
         if self.project:
-            where.append('project_name LIKE ?')
+            where.append('p.name LIKE ?')
             params.append('%' + self.project + '%')
 
         if self.id:
@@ -185,11 +194,24 @@ class QTimer:
         formatted = self._formatSelect(query, where) \
             + ' ORDER BY project_id ASC, ticket_id ASC'
 
+        lenProject = 10
+        lenTicket = 10
+        for row in self.conn.execute(self._formatSelect(maxQuery, where), params):
+            lenProject = int(row['project_len']) + 2
+            lenTicket = int(row['ticket_len']) + 2
+
+        # We assume 2 extra spaces for padding so 15 not 13
+        if (15 + lenProject + lenTicket > self.consoleSize[0]):
+            lenTicket = self.consoleSize[0] - 15 - lenProject
+
         rows = []
         maxLen = 0
         for row in self.conn.execute(formatted, params):
-            rowStr = formatStr %  (row['ticket_id'], row['ticket_name'],
-                row['project_id'], row['project_name'])
+            rowStr = formatStr %  (
+                row['project_id'], lenProject, row['project_name'],
+                row['ticket_id'], lenTicket, 
+                smart_truncate(row['ticket_name'], lenTicket))
+
             length = len(rowStr)
             if length > maxLen:
                 maxLen = length
@@ -200,8 +222,11 @@ class QTimer:
             print(formatted.strip('\n '))
             print()
 
-        print(strings['tickets_header'])
-        print('-' * (maxLen + 5))
+        print(headerStr % (strings['tickets_header'][0], lenProject, 
+            strings['tickets_header'][1], strings['tickets_header'][2], 
+            lenTicket, strings['tickets_header'][3]))
+
+        print('-' * maxLen)
         print('\n'.join(rows))
 
     def _findProjects(self):
@@ -236,7 +261,7 @@ class QTimer:
         query = '''
             SELECT id, name FROM groups g
         '''
-        formatStr = '%-10d%-10s'
+        
         where = []
         params = []
 
@@ -251,12 +276,12 @@ class QTimer:
 
         if self.verbose:
             print(strings['debug_query'])
-            print(formatted.strip('\n '))
+            print(formatted.strip('\n\t '))
             print()
 
         print(strings['groups_header'])
         for row in self.conn.execute(formatted, params):
-            print(formatStr % (row['id'], row['name']))
+            print('%-10d%-10s' % (row['id'], row['name']))
 
     def _noOp(self):
         raise RuntimeError(strings['no_op'])
@@ -274,8 +299,8 @@ class QTimer:
                 raise RuntimeError(strings['no_fk'] % sqlite3.sqlite_version)
 
         if not needsSchemaUpgrade:
-            curs = self.conn.execute('''SELECT max(sync_date) as
-                "sync_date [timestamp]" FROM (
+            curs = self.conn.execute('''
+            SELECT max(sync_date) as "sync_date [timestamp]" FROM (
                 SELECT sync_date FROM tickets t
                 UNION ALL
                 SELECT sync_date FROM projects p
@@ -369,6 +394,11 @@ class QTimer:
         ms = dt.microseconds if hasattr(dt, 'microseconds') else 0
         return dt + timedelta(0, rounding - seconds, -ms)
 
+def smart_truncate(content, length=100, suffix='...'):
+    if len(content) <= length:
+        return content
+    else:
+        return content[:length].rsplit(' ', 1)[0] + suffix 
 
 def parseTime(dateStr):
     return datetime.strptime(dateStr, '%Y-%m-%d %H:%M')
@@ -381,8 +411,9 @@ def formatTime(datetime):
 
 def parseArgs():
     parser = argparse.ArgumentParser()
+    parser.add_argument('-v', '--verbose', action='store_true', default=False)
 
-    subparsers = parser.add_subparsers(title=strings['command_title'], dest='op',)
+    subparsers = parser.add_subparsers(title=strings['command_title'], dest='op')
 
     parser_named = argparse.ArgumentParser(add_help=False)
     parser_named.add_argument('name', help=strings['command_name'])
@@ -415,8 +446,10 @@ def parseArgs():
 
     parser_find = subparsers.add_parser('find', help=strings['command_find'])
 
+    # Parent parser that has ability to search for a name or primary key
     common_find_parser = argparse.ArgumentParser(add_help=False)
-    common_find_parser.add_argument('-n', '--name', help=strings['command_find_name'])
+    common_find_parser.add_argument('-n', '--name', 
+        help=strings['command_find_name'])
     common_find_parser.add_argument('-i', '--id', type=int,
         help=strings['command_find_id'])
 
@@ -474,10 +507,14 @@ def main():
 
     if not path.exists(configPath):
         raise RuntimeError(strings['no_config'])
+
     userConfig.read(configPath)
 
+    verbose = userConfig['debug']['verbose'].lower() == 'true'
+
     config.update({
-        'verbose': userConfig['debug']['verbose'],
+        'verbose': (config['verbose'] or verbose),
+        'consoleSize': terminalsize.get_terminal_size(),
         'dataPath': dataPath,
         'schemaPath': path.join(scriptRoot, SCHEMA_SCRIPT),
         'accountType': userConfig['account']['type'],

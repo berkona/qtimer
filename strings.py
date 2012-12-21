@@ -31,7 +31,22 @@ strings = {
 
     'debug_query': 'SQLite Query used:',
 
-    'groups_header': 'ID        Name',
-    'projects_header': 'ID        Name',
-    'tickets_header': 'Ticket ID - Ticket Name (Project ID - Project Name)',
+    'groups_header': [
+        'ID',
+        'Name',
+        'PID',
+        'Project Name',
+        'TID',
+        'Ticket Name',
+    ],
+    'projects_header': [
+        'ID',
+        'Name',
+    ],
+    'tickets_header': [
+        'PID',
+        'Project Name',
+        'TID',
+        'Ticket Name',
+    ],
 }
