@@ -32,7 +32,8 @@ class QTimer:
 		scriptRoot = path.dirname(path.realpath(__file__))
 		commandPath = path.join(scriptRoot, COMMANDS_FOLDER)
 		files = (path.splitext(item)[0] for item in listdir(commandPath)
-			if (not item == '__init__.py') and path.isfile(path.join(commandPath, item)))
+			if not (item == '__init__.py' or item == 'command.py')
+			and path.isfile(path.join(commandPath, item)))
 
 		for f in files:
 			self.importCommand(f)
@@ -170,7 +171,7 @@ class QTimer:
 	def logQuery(self, formatted):
 		if not self.args.verbose: return
 		print(strings['debug_query'])
-		print(formatted.strip('\n '))
+		print(formatted.strip('\n ').replace('\t', ''))
 		print()
 
 	def outputRows(self, rows = [], header = (), weights = ()):

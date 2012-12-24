@@ -1,4 +1,4 @@
-from command import Cogit stmmand
+from command import Command
 from strings import strings
 from datetime import datetime
 
