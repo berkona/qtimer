@@ -8,7 +8,6 @@ def load_qtimer_plugin(url = None, token = None):
 class ActiveCollabPlugin(PluginPrototype):
 
 	def __init__(self, url, token):
-		PluginPrototype()
 		self.url = url
 		self.token = token
 
