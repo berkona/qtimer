@@ -3,9 +3,9 @@ import re
 from urllib.parse import urlencode
 from urllib.request import urlopen
 from xml.dom.minidom import parse
-from activecollab.settings import API_KEY, AC_URL
-from activecollab.constants import *
-from activecollab.exceptions import ACCommandException
+
+from plugins.activecollab.constants import *
+from plugins.activecollab.exceptions import ACCommandException
 
 
 class ACRequest(object):
@@ -13,7 +13,8 @@ class ACRequest(object):
         commands with a given API key. The returned XML is
         then parsed and returned in usable form """
 
-    def __init__(self, command, item_id=None, subcommand=None, sub_id=None, **kwargs):
+    def __init__(self, command, item_id=None, subcommand=None,
+        sub_id=None, **kwargs):
         if (command not in AC_COMMANDS):
             raise ACCommandException('Not a valid command')
         if subcommand and (subcommand not in AC_SUBCOMMAND):
@@ -25,9 +26,12 @@ class ACRequest(object):
         self.item_id = item_id
         self.sub_id = sub_id
         self.subcommand = subcommand
-        self.api_key = kwargs.get('api_key', API_KEY)
-        self.ac_url = kwargs.get('ac_url', AC_URL)
+        self.api_key = kwargs.get('api_key', None)
+        self.ac_url = kwargs.get('ac_url', None)
         self.params = urlencode(kwargs.get('params', dict()))
+
+        # Modified by Jon "Berkona" Monroe
+        self.data = kwargs.get('data', None)
 
         # quick n easy tag clean - nuffin' fancy
         self.striptags = re.compile(r'<.*?>')
@@ -69,7 +73,11 @@ class ACRequest(object):
     def execute(self):
         """ Make a request for the XML and parse the response """
         try:
-            raw_xml = urlopen(self.command_url)
+            # Modified by Jon "Berkona" Monroe
+            if (self.data):
+                raw_xml = urlopen(self.command_url, self.data)
+            else:
+                raw_xml = urlopen(self.command_url)
         except:
             raise ACCommandException('Could not execute command')
 

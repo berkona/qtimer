@@ -32,5 +32,10 @@ CREATE TABLE tickets (
 	FOREIGN KEY(project_id) REFERENCES projects(id)
 );
 
+CREATE VIEW tickets_extra AS
+	SELECT p.id as project_id, p.name as project_name,
+		t.ticket_id as ticket_id, t.name as ticket_name
+	FROM projects p INNER JOIN tickets t ON p.id = t.project_id;
+
 -- Default data follows
 INSERT INTO groups(id, name) VALUES (1, 'None');
