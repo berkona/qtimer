@@ -26,27 +26,37 @@ strings = {
     'old_data': 'Reloading cache from configured remote source: %s://%s',
     'bad_config': 'Either config file is invalid or does not exist',
     'no_op': 'There is no defined operation for this input',
-    'no_fk': 'Cannot enable foreign keys, platform sqlite3 version %s',
     'no_config': 'You must define a config file with an accountType, url and authentication token',
-
+    'no_plugin_found': 'No plugin found matching accountType %s',
     'debug_query': 'SQLite Query used:',
 
-    'groups_header': [
+    'timer_header': (
+        'ID',
+        'Name',
+        'Group',
+        'Start',
+        'Duration',
+        'Note',
+    ),
+
+    'groups_header': (
         'ID',
         'Name',
         'PID',
         'Project Name',
         'TID',
         'Ticket Name',
-    ],
-    'projects_header': [
+    ),
+
+    'projects_header': (
         'ID',
         'Name',
-    ],
-    'tickets_header': [
+    ),
+
+    'tickets_header': (
         'PID',
         'Project Name',
         'TID',
         'Ticket Name',
-    ],
+    ),
 }
