@@ -505,10 +505,17 @@ def main():
     with open(path.join(scriptRoot, 'default.cfg')) as defaultFile:
         userConfig.readfp(defaultFile)
 
+    defaultUrl = userConfig['account']['url']
+    defaultToken = userConfig['account']['token']
+
     if not path.exists(configPath):
         raise RuntimeError(strings['no_config'])
 
     userConfig.read(configPath)
+
+    if (userConfig['account']['url'] == defaultUrl 
+        or userConfig['account']['token'] == defaultToken):
+        raise RuntimeError(strings['no_config'])
 
     verbose = userConfig['debug']['verbose'].lower() == 'true'
 
