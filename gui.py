@@ -43,9 +43,9 @@ class QTimerMainWindow(QMainWindow):
 			pass
 
 
-		self.ui.list.itemClicked.connect(self.on_list_itemClicked)
+		self.ui.list.itemClicked.connect(self.onListItemClicked)
 
-	def on_list_itemClicked(self, item, column):
+	def onListItemClicked(self, item, column):
 		if item.checkState(0):
 			item.setCheckState(0, Qt.Unchecked)
 		else:
