@@ -26,7 +26,7 @@ class QTimerMainWindow(QMainWindow):
 		session = self.backend.session
 
 		query = session.query(Timer)
-		for timer in query.all():
+		for timer in query:
 			item = QTreeWidgetItem([
 				timer.name,
 				format_time(timer.start),
@@ -36,6 +36,12 @@ class QTimerMainWindow(QMainWindow):
 			item.timer = timer
 			item.setCheckState(0, Qt.Unchecked)
 			self.ui.list.addTopLevelItem(item)
+
+		# Setup initial projects
+		self.backend.syncConditionally()
+		for project in session.query(Project):
+			pass
+
 
 		self.ui.list.itemClicked.connect(self.on_list_itemClicked)
 
