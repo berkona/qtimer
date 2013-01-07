@@ -5,32 +5,42 @@ from datetime import datetime, timedelta
 from os import path, makedirs, listdir
 from importlib import import_module
 
-import argparse
 import configparser
-import sqlite3
+import argparse
+import logging
 
+import logging.config
 
-# Custom imports
+# SQLALchemy
+from sqlalchemy.sql.expression import not_
+from alembic.config import Config
+import sqlalchemy as sa
+import alembic.command
+
+# Custom
+from util import format_time, smart_truncate, autocommit, expand_sql_url
+from model import Timer, Session, Ticket, Project
+from lib import terminalsize, tz
 from strings import strings
-import terminalsize
-import tz
 
 PLUGIN_MOD = 'plugins.%s.plugin'
+COMMANDS_MOD = 'commands.%s'
 
-COMMAND_MOD = 'commands.%s'
-COMMANDS_FOLDER = 'commands'
+SCRIPT_ROOT = path.dirname(path.realpath(__file__))
 
-DB_VERSION = 29
-DATA_NAME = 'timers v%d.db' % DB_VERSION
-
+# This is what we use for writing to the database
+SQLSession = sa.orm.sessionmaker()
 
 class QTimer:
 
-	def __init__(self):
-		self.commands = {}
+	# We use getter properties to offset resource creation until we need it
+	@property
+	def commands(self):
+		if hasattr(self, '_commands'):
+			return self._commands
 
-		scriptRoot = path.dirname(path.realpath(__file__))
-		commandPath = path.join(scriptRoot, COMMANDS_FOLDER)
+		self._commands = {}
+		commandPath = path.join(SCRIPT_ROOT, 'commands')
 		files = (path.splitext(item)[0] for item in listdir(commandPath)
 			if not (item == '__init__.py' or item == 'command.py')
 			and path.isfile(path.join(commandPath, item)))
@@ -38,94 +48,68 @@ class QTimer:
 		for f in files:
 			self.importCommand(f)
 
+		return self._commands
 
-		self.args = self.parseArgs()
+	@property
+	def lastSynced(self):
+		if hasattr(self, '_lastSynced'):
+			return self._lastSynced
 
-		configRoot = path.expanduser('~/.qtimer')
-		if not path.exists(configRoot):
-			makedirs(configRoot)
+		tickets_synced = self.session.query(Ticket.synced_date)
+		projects_synced = self.session.query(Project.synced_date)
 
-		configPath = path.join(configRoot, 'qtimer.cfg')
+		q = tickets_synced.union_all(projects_synced).order_by('anon_1_tickets_synced_date DESC')
+		row = q.first()
+		if (row):
+			self._lastSynced = row[0]
+			return self._lastSynced
 
-		userConfig = configparser.ConfigParser()
-		with open(path.join(scriptRoot, 'default.cfg')) as defaultFile:
-			userConfig.readfp(defaultFile)
+	@property
+	def session(self):
+		if hasattr(self, '_session'):
+			return self._session
 
-		if not path.exists(configPath):
-			raise RuntimeError(strings['no_config'])
+		# This also has the side-effect of initializing the database and logging
+		alembic_ini = Config(path.join(SCRIPT_ROOT, 'alembic.ini'))
 
-		userConfig.read(configPath)
+		if self.config.verbose:
+			logging.config.fileConfig(path.join(SCRIPT_ROOT, 'logging.verbose.ini'))
+		else:
+			logging.config.fileConfig(path.join(SCRIPT_ROOT, 'logging.default.ini'))
 
-		# Store some vital pathnames for later
-		self.dataPath = path.join(configRoot, DATA_NAME)
-		self.schemaPath = path.join(scriptRoot, 'schema.sql')
+		alembic.command.upgrade(alembic_ini, "head")
 
-		# userConfig fields
-		self.accountType = userConfig['account']['type']
-		self.url = userConfig['account']['url']
-		self.token = userConfig['account']['token']
-		self.cacheLifetime = int(userConfig['account']['cache_lifetime'])
-		self.rounding = 60 * int(userConfig['timers']['rounding'])
+		self.engine = sa.create_engine(
+			expand_sql_url(alembic_ini.get_main_option("sqlalchemy.url")),
+			encoding="utf-8", echo=False
+		)
 
-		verbose = userConfig['debug']['verbose'].lower() == 'true'
+		SQLSession.configure(bind=self.engine)
 
-		# Inject a couple things into args based on userConfig/systemConfig
-		setattr(self.args, 'verbose', (self.args.verbose or verbose))
-		setattr(self.args, 'consoleSize', terminalsize.get_terminal_size())
-
-		# This also has the side-effect of initializing the database
-		self.lastSynced = self.conn.execute('''
-		SELECT max(sync_date) as "sync_date [timestamp]" FROM (
-			SELECT sync_date FROM tickets t
-			UNION ALL
-			SELECT sync_date FROM projects p
-		) ''').fetchone()[0]
+		self._session = SQLSession()
+		return self._session
 
 	@property
 	def plugin(self):
 		if hasattr(self, '_plugin'):
 			return self._plugin
 
-		if not (self.url and self.token and self.accountType):
+		if not (self.config.url and self.config.token and self.config.accountType):
 			raise RuntimeError(strings['bad_config'])
 
 		try:
-			mod = import_module(PLUGIN_MOD % self.accountType)
-			self._plugin = mod.load_qtimer_plugin(self.url, self.token)
+			mod = import_module(PLUGIN_MOD % self.config.accountType)
+			self._plugin = mod.load_qtimer_plugin(self.config.url, self.config.token)
 			return self._plugin
 		except ImportError:
-			raise RuntimeError(strings['no_plugin_found'] % self.accountType)
+			raise RuntimeError(strings['no_plugin_found'] % self.config.accountType)
 
 	@property
-	def conn(self):
-		if (hasattr(self, '_conn')):
-			return self._conn
+	def parser(self):
+		if hasattr(self, '_parser'):
+			return self._parser
 
-		needsSchemaUpgrade = not path.exists(self.dataPath)
-
-		self._conn = sqlite3.connect(self.dataPath,
-			detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-		self._conn.row_factory = sqlite3.Row
-		self._conn.execute('pragma foreign_keys=ON')
-
-		if needsSchemaUpgrade:
-			print(strings['new_db'] % DB_VERSION)
-			with self._conn:
-				with open(self.schemaPath, 'rt') as f:
-					schema = f.read()
-				self._conn.executescript(schema)
-
-		return self._conn
-
-	def run(self):
-		try:
-			return self.executeCommand(self.args.op, self.args)
-		finally:
-			self.conn.close()
-
-	def parseArgs(self, argsOverride=None):
 		parser = argparse.ArgumentParser()
-		parser.add_argument('-v', '--verbose', action='store_true', default=False)
 
 		subparsers = parser.add_subparsers(title=strings['command_title'], dest='op')
 
@@ -136,7 +120,47 @@ class QTimer:
 				subparser = subparsers.add_parser(identifier)
 			command.addArguments(subparser)
 
-		args = parser.parse_args(argsOverride)
+		self._parser = parser
+		return self._parser
+
+	@property
+	def config(self):
+		if hasattr(self, '_config'):
+			return self._config
+
+		configRoot = path.expanduser('~/.qtimer')
+		if not path.exists(configRoot):
+			makedirs(configRoot)
+
+		configPath = path.join(configRoot, 'qtimer.ini')
+
+		userConfig = configparser.ConfigParser()
+		with open(path.join(SCRIPT_ROOT, 'default.ini')) as defaultFile:
+			userConfig.readfp(defaultFile)
+
+		if not path.exists(configPath):
+			raise RuntimeError(strings['no_config'])
+
+		userConfig.read(configPath)
+
+		class Config(object):
+			pass
+
+		self._config = Config()
+
+		# userConfig fields
+		self._config.accountType = userConfig['account']['type']
+		self._config.url = userConfig['account']['url']
+		self._config.token = userConfig['account']['token']
+		self._config.cacheLifetime = int(userConfig['account']['cache_lifetime'])
+		self._config.rounding = 60 * int(userConfig['timers']['rounding'])
+
+		self._config.verbose = userConfig['debug']['verbose'].lower() == 'true'
+
+		return self._config
+
+	def parseArgs(self, argsOverride=None):
+		args = self.parser.parse_args(argsOverride)
 		if not args.op:
 			parser.print_help()
 			raise RuntimeError(strings['no_op'])
@@ -144,42 +168,32 @@ class QTimer:
 		return args
 
 	def importCommand(self, f):
-		modName = COMMAND_MOD % f
-
 		# Predict the class name to be the TitleCase of the script mod
 		className = f.title().replace('_', '')
-		mod = import_module(modName)
+		mod = import_module(COMMANDS_MOD % f)
 		command = getattr(mod, className)()
 
 		if not hasattr(command, 'COMMAND_IDENTIFIER'):
 			raise RuntimeError('Command %s must declare an ID' % modName)
 
-		self.commands[command.COMMAND_IDENTIFIER] = command
+		self._commands[command.COMMAND_IDENTIFIER] = command
 
-	def executeCommand(self, op, args):
-		command = self.commands.get(op, None)
+	def executeCommand(self, args):
+		command = self.commands.get(args.op, None)
 		if not command:
 			raise RuntimeError('No command found matching ' + op)
-		command.runCommand(args, self)
-
-	def formatSelect(self, query, where):
-		output = query
-		if (where):
-			output += ' WHERE ' + ' AND '.join(where)
-		return output
-
-	def logQuery(self, formatted):
-		if not self.args.verbose: return
-		print(strings['debug_query'])
-		print(formatted.strip('\n ').replace('\t', ''))
-		print()
+		return command.runCommand(args, self)
 
 	def outputRows(self, rows = [], header = (), weights = ()):
+		if not weights:
+			lenHeader = len(header)
+			weights = tuple( [ (1/lenHeader) for i in range(lenHeader) ] )
+
 		totalWeight = sum(weights)
 		if (totalWeight > 1 or totalWeight < 0.99):
 			raise RuntimeError('The sum of all weights must be about 1, totalWeight: %f' % totalWeight)
 
-		totalWidth = self.args.consoleSize[0]
+		totalWidth = terminalsize.get_terminal_size()[0]
 		widths = []
 		formatStr = ''
 		for weight in weights:
@@ -199,48 +213,35 @@ class QTimer:
 			print(formatStr % tuple(items))
 
 	def syncConditionally(self):
-		lifetime = timedelta(minutes=self.cacheLifetime)
+		lifetime = timedelta(minutes=self.config.cacheLifetime)
 
 		if (not self.lastSynced
 			or datetime.utcnow() - self.lastSynced > lifetime):
 			self.sync()
 
 	def sync(self):
-		print(strings['old_data'] % (self.accountType, self.url))
+		logging.getLogger('qtimer').info(strings['old_data'] % (self.config.accountType, self.config.url))
 
-		projectInsert = '''
-			INSERT OR REPLACE INTO projects(id, name) VALUES (?, ?)
-		'''
+		with autocommit(self.session) as session:
+			project_ids = []
+			ticket_ids = []
 
-		ticketInsert = '''
-			INSERT OR REPLACE INTO tickets(id, ticket_id, project_id, name)
-				VALUES (?, ?, ?, ?)
-		'''
+			projects = self.plugin.listProjects()
+			for project in projects:
+				project_ids.append(project.id)
+				session.merge(project)
+				tickets = self.plugin.listTickets(project.id)
+				for ticket in tickets:
+					ticket_ids.append(ticket.id)
+					session.merge(ticket)
 
-		with self.conn:
-			for project in self.plugin.listProjects():
-				self.conn.execute(projectInsert,
-					(project['id'], project['name']))
-
-				for ticket in self.plugin.listTickets(project['id']):
-					self.conn.execute(ticketInsert,
-						(ticket['id'], ticket['ticket_id'],
-							project['id'], ticket['name']))
+			session.query(Project).filter(~Project.id.in_(project_ids)).delete('fetch')
+			session.query(Ticket).filter(~Ticket.id.in_(ticket_ids)).delete('fetch')
 
 		self.lastSync = datetime.utcnow()
 
-	def findGroupId(self, group):
-		groupId = 1  # This is the 'None' group
-		curs = self.conn.execute('''
-			SELECT id FROM groups WHERE name LIKE ?
-		''', [group])
-		row = curs.fetchone()
-		if (row):
-			groupId = row[0]
-		return groupId
-
-	def round_time(self, dt):
-		roundTo = self.rounding
+	def roundTime(self, dt):
+		roundTo = self.config.rounding
 		seconds = (dt - dt.min).seconds
 		# // is a floor division not a comment on the following line
 		rounding = (seconds + roundTo / 2) // roundTo * roundTo
@@ -248,20 +249,13 @@ class QTimer:
 		ret = dt + timedelta(0, rounding - seconds, -ms)
 		return ret
 
-def smart_truncate(content, length=100, suffix='...'):
-	length = length - len(suffix)
-	if len(content) <= length:
-		return content
-	else:
-		return content[:length].rsplit(' ', 1)[0] + suffix
-
-def parse_time(dateStr):
-	return datetime.strptime(dateStr, '%Y-%m-%d %H:%M')
-
-
-def format_time(datetime):
-	utc = datetime.replace(tzinfo=tz.UTC)
-	return utc.astimezone(tz.Local).strftime('%x %H:%M')
+def main():
+		try:
+			qtimer = QTimer()
+			args = qtimer.parseArgs()
+			qtimer.executeCommand(args)
+		finally:
+			SQLSession.close_all()
 
 if __name__ == '__main__':
-	exit(QTimer().run())
+	exit(main())

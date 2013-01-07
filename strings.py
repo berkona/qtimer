@@ -33,10 +33,9 @@ strings = {
     'timer_header': (
         'ID',
         'Name',
-        'Group',
+        'Ticket Id',
         'Start',
         'Duration',
-        'Note',
     ),
 
     'groups_header': (

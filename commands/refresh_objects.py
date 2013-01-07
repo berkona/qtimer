@@ -1,4 +1,4 @@
-from command import Command
+from commands.command import Command
 from strings import strings
 
 class RefreshObjects(Command):

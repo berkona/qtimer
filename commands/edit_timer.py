@@ -1,6 +1,7 @@
-from command import Command
+from util import parse_time, autocommit
+
+from commands.command import Command
 from strings import strings
-from qtimer import parse_time
 
 class EditTimer(Command):
 
@@ -14,29 +15,22 @@ class EditTimer(Command):
 	COMMAND_HELP = strings['command_edit']
 
 	def runCommand(self, args, program):
-		values = []
-		params = []
-		if (args.note):
-			values.append('note = ?')
-			params.append(args.note)
-		if (args.start):
-			values.append('start = ?')
-			params.append(args.start)
-		if (args.end):
-			values.append('end = ?')
-			params.append(args.end)
+		with autocommit(program.session) as session:
+			q = session.query(Timer).filter(Timer.name.like('%' + args.name + '%'))
+			values = {}
+			if args.start:
+				values[Timer.start] = args.start
+			if args.end:
+				values[Timer.end] = args.end
+			if args.ticket:
+				values[Timer.ticket_id] = args.ticket
 
-		params.append(args.name)
-
-		query = 'UPDATE timers SET %s WHERE name LIKE ?' % ', '.join(values)
-		with program.conn:
-			program.conn.execute(query, params)
+			return q.update(values)
 
 	def addArguments(self, parser):
 		parser.add_argument('name', help=strings['command_name'])
-		parser.add_argument('-n', '--note', help=strings['command_edit_note'])
 		parser.add_argument('-s', '--start', type=parse_time,
 			help=strings['command_edit_start'])
 		parser.add_argument('-e', '--end', type=parse_time,
 			help=strings['command_edit_end'])
-		parser.add_argument('-g', '--group', help=strings['command_edit_group'])
+		parser.add_argument('-t', '--ticket', type=int, help=strings['command_edit_group'])

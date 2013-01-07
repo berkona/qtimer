@@ -1,6 +1,10 @@
-from command import Command
-from strings import strings
 from datetime import datetime
+
+from commands.command import Command
+from model import Timer, Session
+from strings import strings
+from util import autocommit
+
 
 class EndTimer(Command):
 
@@ -11,13 +15,16 @@ class EndTimer(Command):
 		parser.add_argument('name', help=strings['command_name'])
 
 	def runCommand(self, args, program):
-		query = '''
-			UPDATE timers SET end = ? WHERE name LIKE ? AND end IS NULL
-		'''
+		with autocommit(program.session) as session:
 
-		with program.conn:
-			program.conn.execute(query,
-				(program.round_time(datetime.utcnow()), args.name))
+			values = {
+				Session.end: program.roundTime(datetime.utcnow())
+			}
+
+			query = session.query(Timer).filter(Timer.name.like('%' + args.name + '%'))
+			for timer in query:
+				session.query(Session).filter(Session.timer_id == timer.id)\
+					.filter(Session.end == None).update(values)
 
 		args = program.parseArgs(['find', 'timers', '-n', args.name])
-		program.executeCommand(args.op, args)
+		return program.executeCommand(args)

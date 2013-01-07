@@ -1,5 +1,6 @@
 from plugins.prototype import PluginPrototype, PluginError
 from plugins.activecollab.library import ACRequest
+from model import Project, Ticket
 
 # Yes, magic methods suck, but this makes it easier to use classes
 def load_qtimer_plugin(url = None, token = None):
@@ -13,7 +14,8 @@ class ActiveCollabPlugin(PluginPrototype):
 
 	def listProjects(self):
 		req = ACRequest('projects', ac_url=self.url, api_key=self.token)
-		return req.execute()
+		makeProject = lambda item: Project(id=item['id'], name=item['name'])
+		return [ makeProject(item) for item in req.execute() ]
 
 	def listTickets(self, projectId = -1):
 		if (projectId == -1):
@@ -21,7 +23,11 @@ class ActiveCollabPlugin(PluginPrototype):
 
 		req = ACRequest('projects', item_id=projectId, subcommand='tickets',
 			ac_url=self.url, api_key=self.token)
-		return req.execute()
+
+		makeTicket = lambda item: Ticket(id=item['id'], name=item['name'],
+			ticket_id=item['ticket_id'], project_id=projectId)
+
+		return [ makeTicket(item) for item in req.execute() ]
 
 	def postTimer(self, projectId = -1, ticketId = -1, data = None):
 		if (projectId == -1):
