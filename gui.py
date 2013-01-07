@@ -7,7 +7,7 @@ from PySide.QtGui import *
 from PySide.QtDeclarative import *
 
 from model import Timer, Session, Ticket, Project
-from ui.main_window import Ui_MainWindow
+from ui.main_window import Ui_mainwindow
 from util import autocommit, format_time
 import qtimer
 
@@ -19,7 +19,7 @@ class QTimerMainWindow(QMainWindow):
 		super().__init__(parent)
 		self.backend = qtimer.QTimer()
 
-		self.ui = Ui_MainWindow()
+		self.ui = Ui_mainwindow()
 		self.ui.setupUi(self)
 		self.setWindowTitle('qTimer v%s' % VERSION)
 
@@ -37,10 +37,15 @@ class QTimerMainWindow(QMainWindow):
 			item.setCheckState(0, Qt.Unchecked)
 			self.ui.list.addTopLevelItem(item)
 
-		self.ui.list.itemChanged.connect(self.on_list_itemChanged)
+		self.ui.list.itemClicked.connect(self.on_list_itemClicked)
 
-	def on_list_itemChanged(self, item, column):
-		print('item: ', repr(item), 'col: ', repr(item.timer))
+	def on_list_itemClicked(self, item, column):
+		if item.checkState(0):
+			item.setCheckState(0, Qt.Unchecked)
+		else:
+			item.setCheckState(0, Qt.Checked)
+
+		# print('item: ', repr(item), 'col: ', repr(item.timer))
 
 if __name__ == '__main__':
 	app = QApplication(sys.argv)
