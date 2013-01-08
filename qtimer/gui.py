@@ -160,9 +160,8 @@ class QTimerMainWindow(QMainWindow):
             text, ok = QInputDialog.getText(self, 'Enter Timer Name', 'Enter new timer name:')
             if not ok:
                 return
-
-            tIdx = self.ui.tickets.currentIndex()
-            tid = self.ui.tickets.itemData(tIdx)
+            selected = self.ui.projects.selectedItems()
+            tid = selected
             args = self.backend.parseArgs(['start', text, '-t', str(tid)])
             self.backend.executeCommand(args)
             self.onTicketClicked(tIdx)
