@@ -13,7 +13,7 @@ down_revision = ${repr(down_revision)}
 from alembic import op
 import sqlalchemy as sa
 
-from sqlalchemy.sql.expression import func
+from sqlalchemy.sql.expression import *
 
 ${imports if imports else ""}
 
