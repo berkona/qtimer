@@ -3,7 +3,8 @@ import logging
 from contextlib import contextmanager
 from datetime import datetime
 from os import path
-from lib import tz
+
+from qtimer.lib import tz
 
 
 def expand_sql_url(url):
