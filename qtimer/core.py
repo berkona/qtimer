@@ -18,10 +18,10 @@ import sqlalchemy as sa
 import alembic.command
 
 # Custom
-from util import smart_truncate, autocommit, expand_sql_url
-from model import Ticket, Project, PersistentVar
-from lib import terminalsize
-from strings import strings
+from qtimer.util import smart_truncate, autocommit, expand_sql_url
+from qtimer.model import Ticket, Project, PersistentVar
+from qtimer.lib import terminalsize
+from qtimer.strings import strings
 
 PLUGIN_MOD = 'plugins.%s.plugin'
 COMMANDS_MOD = 'commands.%s'

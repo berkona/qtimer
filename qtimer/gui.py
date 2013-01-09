@@ -9,12 +9,12 @@ from PySide.QtCore import *
 from PySide.QtGui import *
 
 # QTimer imports
-from model import Timer, Ticket, Project
-from util import format_time
-import qtimer
+from qtimer.model import Timer, Ticket, Project
+from qtimer.util import format_time
+import qtimer.core as qtimer
 
 # UI Imports
-from ui.main_window import Ui_mainwindow
+from qtimer.ui.main_window import Ui_mainwindow
 
 VERSION = '0.1'
 
@@ -160,9 +160,8 @@ class QTimerMainWindow(QMainWindow):
             text, ok = QInputDialog.getText(self, 'Enter Timer Name', 'Enter new timer name:')
             if not ok:
                 return
-
-            tIdx = self.ui.tickets.currentIndex()
-            tid = self.ui.tickets.itemData(tIdx)
+            selected = self.ui.projects.selectedItems()
+            tid = selected
             args = self.backend.parseArgs(['start', text, '-t', str(tid)])
             self.backend.executeCommand(args)
             self.onTicketClicked(tIdx)
