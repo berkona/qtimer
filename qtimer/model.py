@@ -30,8 +30,12 @@ class NamedMixin(object):
     name = Column(Unicode(256), nullable=False)
 
 
-class PersistentVar(BaseMixin, Base):
-    name = Column(Unicode(256), nullable=False, unique=True, index=True)
+class PersistentVar(Base):
+    @declared_attr
+    def __tablename__(cls):
+        return 'qtimer_%ss' % cls.__name__.lower()
+
+    name = Column(Unicode(256), nullable=False, primary_key=True)
     value = Column(PickleType, nullable=False)
 
 

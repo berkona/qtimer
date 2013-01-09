@@ -1,5 +1,6 @@
-from commands.command import Command
-from strings import strings
+from qtimer.commands.command import Command
+from qtimer.strings import strings
+
 
 class RefreshObjects(Command):
 

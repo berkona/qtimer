@@ -4,8 +4,8 @@ from urllib.parse import urlencode
 from urllib.request import urlopen
 from xml.dom.minidom import parse
 
-from plugins.activecollab.constants import *
-from plugins.activecollab.exceptions import ACCommandException
+from qtimer.plugins.activecollab.constants import *
+from qtimer.plugins.activecollab.exceptions import ACCommandException
 
 
 class ACRequest(object):
@@ -31,7 +31,7 @@ class ACRequest(object):
         self.params = urlencode(kwargs.get('params', dict()))
 
         # Modified by Jon "Berkona" Monroe
-        self.data = kwargs.get('data', None)
+        self.data = urlencode(kwargs.get('data', dict()))
 
         # quick n easy tag clean - nuffin' fancy
         self.striptags = re.compile(r'<.*?>')
@@ -88,6 +88,7 @@ class ACRequest(object):
         else:
             items = xml.getElementsByTagName(AC_COMMAND_ELEMENT[self.command])
 
+        # Modified by Jon "Berkona" Monroe to output something more useful
         output = list()
         for item in items:
             item_dict = {}

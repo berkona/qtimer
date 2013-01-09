@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
 
-from commands.command import Command
-from model import Timer, Session
-from util import autocommit
-from strings import strings
+from qtimer.commands.command import Command
+from qtimer.model import Timer, Session
+from qtimer.util import autocommit
+from qtimer.strings import strings
 
 
 class StartTimer(Command):
