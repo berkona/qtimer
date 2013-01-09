@@ -1,0 +1,4 @@
+#! /usr/bin/env python3
+
+import qtimer.gui as qtgui
+qtgui.main()
