@@ -236,17 +236,17 @@ class QTimerCore:
 			project_ids = []
 			ticket_ids = []
 
+			session.query(Project).delete()
+			session.query(Ticket).delete()
+
 			projects = self.plugin.listProjects()
 			for project in projects:
 				project_ids.append(project.id)
-				session.merge(project)
+				session.add(project)
 				tickets = self.plugin.listTickets(project.id)
 				for ticket in tickets:
 					ticket_ids.append(ticket.id)
-					session.merge(ticket)
-
-			session.query(Project).filter(~Project.id.in_(project_ids)).delete('fetch')
-			session.query(Ticket).filter(~Ticket.id.in_(ticket_ids)).delete('fetch')
+					session.add(ticket)
 
 			lastSynced = PersistentVar(name='internal.lastSynced', value=datetime.utcnow())
 			session.merge(lastSynced)

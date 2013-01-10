@@ -33,3 +33,6 @@ nosetests.xml
 
 # databases
 *.db
+
+# Logging stuff
+*.log
