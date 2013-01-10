@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
 
-from commands.command import Command
-from model import Timer, Session
-from util import format_time
-from strings import strings
+from qtimer.commands.command import Command
+from qtimer.model import Timer, Session
+from qtimer.util import format_time
+from qtimer.strings import strings
 
 
 class ShowTimer(Command):

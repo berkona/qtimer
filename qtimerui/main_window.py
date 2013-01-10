@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'ui/main_window.ui'
+# Form implementation generated from reading ui file 'qtimerui/main_window.ui'
 #
-# Created: Tue Jan  8 01:58:52 2013
+# Created: Wed Jan  9 20:23:40 2013
 #      by: pyside-uic 0.2.13 running on PySide 1.1.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -12,7 +12,7 @@ from PySide import QtCore, QtGui
 class Ui_mainwindow(object):
     def setupUi(self, mainwindow):
         mainwindow.setObjectName("mainwindow")
-        mainwindow.resize(853, 460)
+        mainwindow.resize(1006, 606)
         self.centralwidget = QtGui.QWidget(mainwindow)
         self.centralwidget.setObjectName("centralwidget")
         self.verticalLayout = QtGui.QVBoxLayout(self.centralwidget)
@@ -40,13 +40,19 @@ class Ui_mainwindow(object):
         self.actions.setObjectName("actions")
         self.horizontalLayout.addWidget(self.actions)
         self.verticalLayout.addLayout(self.horizontalLayout)
-        self.horizontalLayout_2 = QtGui.QHBoxLayout()
-        self.horizontalLayout_2.setObjectName("horizontalLayout_2")
-        self.projects = QtGui.QTreeWidget(self.centralwidget)
-        self.projects.setMaximumSize(QtCore.QSize(250, 16777215))
+        self.splitter = QtGui.QSplitter(self.centralwidget)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.splitter.sizePolicy().hasHeightForWidth())
+        self.splitter.setSizePolicy(sizePolicy)
+        self.splitter.setMinimumSize(QtCore.QSize(512, 192))
+        self.splitter.setOrientation(QtCore.Qt.Horizontal)
+        self.splitter.setObjectName("splitter")
+        self.projects = QtGui.QTreeWidget(self.splitter)
+        self.projects.setMaximumSize(QtCore.QSize(16777215, 16777215))
         self.projects.setObjectName("projects")
-        self.horizontalLayout_2.addWidget(self.projects)
-        self.timers = QtGui.QTreeWidget(self.centralwidget)
+        self.timers = QtGui.QTreeWidget(self.splitter)
         self.timers.setProperty("showDropIndicator", False)
         self.timers.setAlternatingRowColors(True)
         self.timers.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
@@ -54,8 +60,7 @@ class Ui_mainwindow(object):
         self.timers.setUniformRowHeights(True)
         self.timers.setAllColumnsShowFocus(True)
         self.timers.setObjectName("timers")
-        self.horizontalLayout_2.addWidget(self.timers)
-        self.verticalLayout.addLayout(self.horizontalLayout_2)
+        self.verticalLayout.addWidget(self.splitter)
         mainwindow.setCentralWidget(self.centralwidget)
         self.actionStart = QtGui.QAction(mainwindow)
         self.actionStart.setObjectName("actionStart")

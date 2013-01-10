@@ -1,9 +1,9 @@
 from datetime import datetime
 
-from commands.command import Command
-from model import Timer, Session
-from strings import strings
-from util import autocommit
+from qtimer.commands.command import Command
+from qtimer.model import Timer, Session
+from qtimer.strings import strings
+from qtimer.util import autocommit
 
 
 class EndTimer(Command):
@@ -21,10 +21,12 @@ class EndTimer(Command):
 				Session.end: program.roundTime(datetime.utcnow())
 			}
 
-			query = session.query(Timer).filter(Timer.name.like('%' + args.name + '%'))
-			for timer in query:
-				session.query(Session).filter(Session.timer_id == timer.id)\
-					.filter(Session.end == None).update(values)
+			remove_tuples = lambda row: row[0]
+			ids = map(remove_tuples, session.query(Timer.id).filter(
+				Timer.name.like('%' + args.name + '%')).all())
+
+			session.query(Session).filter(Session.timer_id.in_(ids))\
+				.filter(Session.end == None).update(values, 'fetch')
 
 		args = program.parseArgs(['find', 'timers', '-n', args.name])
 		return program.executeCommand(args)

@@ -1,7 +1,7 @@
-from util import parse_time, autocommit
+from qtimer.util import parse_time, autocommit
 
-from commands.command import Command
-from strings import strings
+from qtimer.commands.command import Command
+from qtimer.strings import strings
 
 class EditTimer(Command):
 

@@ -1,8 +1,6 @@
-from datetime import time
-
-from commands.command import Command
-from util import autocommit
-from strings import strings
+from qtimer.commands.command import Command
+from qtimer.util import autocommit
+from qtimer.strings import strings
 
 
 class PostTimer(Command):
