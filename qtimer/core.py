@@ -13,6 +13,8 @@ import logging
 import logging.config
 import logging.handlers
 
+from appdirs import AppDirs
+
 # SQLALchemy
 from alembic.config import Config
 import sqlalchemy as sa
@@ -27,21 +29,15 @@ from qtimer.strings import strings
 PLUGIN_MOD = 'qtimer.plugins.%s.plugin'
 COMMANDS_MOD = 'qtimer.commands.%s'
 
+APPDIRS = AppDirs(__name__, 'Solipsis Development', roaming=True)
+
 SCRIPT_ROOT = path.dirname(path.realpath(__file__))
+DATA_DIR = APPDIRS.user_data_dir()
 
 # This is what we use for writing to the database
 SQLSession = sa.orm.sessionmaker()
 
 logging.config.fileConfig(path.join(SCRIPT_ROOT, 'alembic.ini'))
-lh = logging.handlers.RotatingFileHandler(
-	filename=path.expanduser('~/.qtimer/debug.log'),
-	maxBytes=10240,
-	backupCount=5,
-)
-lh.setFormatter(logging.Formatter('%(levelname)-4.4s [%(name)s] %(message)s', '%H:%M:%S'))
-lh.setLevel(logging.DEBUG)
-
-logging.getLogger().addHandler(lh)
 CoreLogger = logging.getLogger(__name__)
 
 
@@ -55,9 +51,11 @@ class QTimerCore:
 
 		self._commands = {}
 		commandPath = path.join(SCRIPT_ROOT, 'commands')
+		filterCommands = lambda item: not (item == '__init__.py'
+			or item == 'command.py') and path.isfile(path.join(commandPath, item))
+
 		files = (path.splitext(item)[0] for item in listdir(commandPath)
-			if not (item == '__init__.py' or item == 'command.py')
-			and path.isfile(path.join(commandPath, item)))
+			if filterCommands)
 
 		for f in files:
 			self.importCommand(f)
@@ -136,11 +134,10 @@ class QTimerCore:
 		if hasattr(self, '_config'):
 			return self._config
 
-		configRoot = path.expanduser('~/.qtimer')
-		if not path.exists(configRoot):
-			makedirs(configRoot)
+		if not path.exists(DATA_DIR):
+			makedirs(DATA_DIR)
 
-		configPath = path.join(configRoot, 'qtimer.ini')
+		configPath = path.join(DATA_DIR, 'qtimer.ini')
 
 		userConfig = configparser.ConfigParser()
 		with open(path.join(SCRIPT_ROOT, 'default.ini')) as defaultFile:
@@ -157,7 +154,7 @@ class QTimerCore:
 		self._config = Config()
 
 		# userConfig fields
-		self._config.configRoot = configRoot
+		self._config.configRoot = DATA_DIR
 		self._config.configPath = configPath
 		self._config.accountType = userConfig['account']['type']
 		self._config.url = userConfig['account']['url']
@@ -270,11 +267,14 @@ class QTimerCore:
 
 @contextmanager
 def create_qtimer():
+	CoreLogger.debug('QTimerCore created through create_qtimer.')
 	qtimer = QTimerCore()
 	try:
 		yield qtimer
 	finally:
+		CoreLogger.debug('Control returned to create_qtimer, destroying core')
 		qtimer.close()
+		CoreLogger.debug('Control returned to create_qtimer, destroying core')
 		SQLSession.close_all()
 
 
