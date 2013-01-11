@@ -6,7 +6,7 @@ setup(
 	author='Jon "Berkona" Monroe',
 	author_email='solipsis.dev@gmail.com',
 	packages=['qtimer', 'qtimerui'],
-	scripts=['bin/qtimer', 'bin/qtimer-gui'],
+	scripts=['bin/qtimer', 'bin/qtimer-ui'],
 	license='LICENSE.txt',
 	description='A small timer program that integrates with various project management solutions',
 	long_description=open('README.txt').read(),
