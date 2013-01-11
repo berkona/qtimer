@@ -16,14 +16,14 @@ class EditTimer(Command):
 
 	def runCommand(self, args, program):
 		with autocommit(program.session) as session:
-			q = session.query(Timer).filter(Timer.name.like('%' + args.name + '%'))
+			q = session.query(Timer).filter(Timer.name.like('%' + args['name'] + '%'))
 			values = {}
-			if args.start:
-				values[Timer.start] = args.start
-			if args.end:
-				values[Timer.end] = args.end
-			if args.ticket:
-				values[Timer.ticket_id] = args.ticket
+			if args['start']:
+				values[Timer.start] = args['start']
+			if args['end']:
+				values[Timer.end] = args['end']
+			if args['ticket']:
+				values[Timer.ticket_id] = args['ticket']
 
 			return q.update(values)
 

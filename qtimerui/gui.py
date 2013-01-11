@@ -1,5 +1,3 @@
-#! /usr/bin/env python3
-
 # System imports
 from os import path
 from datetime import datetime
@@ -10,15 +8,14 @@ from PySide.QtCore import *
 from PySide.QtGui import *
 
 # QTimer imports
-from qtimer.model import *
 from qtimer.util import format_time
+from qtimer.model import *
+from qtimer.env import *
+
 import qtimer.core as qtimer
 
 # UI Imports
 from qtimerui.main_window import Ui_mainwindow
-
-#SQLAlchemy imports
-from sqlalchemy import event
 
 VERSION = '0.1'
 
@@ -79,14 +76,14 @@ class QTimerMainWindow(QMainWindow):
 
 		self.durationTimer = QTimer(self)
 		self.durationTimer.timeout.connect(self.onRefreshDurations)
-		self.durationTimer.start(self.backend.config.rounding * 1000)
+		self.durationTimer.start(int(self.backend.config.timers.rounding) * 1000)
 
 	def onDateChanged(self, dateEdit):
-		if self.ui.date_from_label.checkState() == Qt.Unchecked:
-			self.ui.date_from_label.setCheckState(Qt.Checked)
+		if dateEdit.checkState() == Qt.Unchecked:
+			dateEdit.setCheckState(Qt.Checked)
 
 	def writeSettings(self):
-		settingsPath = path.join(self.backend.config.configRoot, 'qtimer.gui.ini')
+		settingsPath = path.join(DATA_DIR, 'qtimer.gui.ini')
 		settings = QSettings(settingsPath, QSettings.IniFormat)
 
 		settings.beginGroup('MainWindow')
@@ -98,7 +95,7 @@ class QTimerMainWindow(QMainWindow):
 		settings.endGroup()
 
 	def readSettings(self):
-		settingsPath = path.join(self.backend.config.configRoot, 'qtimer.gui.ini')
+		settingsPath = path.join(DATA_DIR, 'qtimer.gui.ini')
 		settings = QSettings(settingsPath, QSettings.IniFormat)
 
 		settings.beginGroup('MainWindow')
@@ -174,23 +171,16 @@ class QTimerMainWindow(QMainWindow):
 			if not ok:
 				return
 
-			selected = self.ui.projects.selectedItems()
-			print(repr(selected))
-			item = None
-			tid = None
-			for i in selected:
-				if not hasattr(item, 'ticket'):
-					continue
-				print(repr(item.ticket))
-				item = i
+			item = self.ui.projects.selectedItems()
 
-			if item:
-				tid = item.timer.id
+			tid = None
+			if hasattr(item, 'ticket'):
+				tid = item.ticket.id
 
 			session = Session(start=self.backend.roundTime(datetime.utcnow()))
 			timer = Timer(name=text, ticket_id=tid, sessions=[session])
 			self.backend.session.add(timer)
-		self.onFilterClicked(item, None)
+			self.onFilterClicked(item, None)
 
 	def onStopTimers(self, items):
 		if not items:
@@ -222,7 +212,7 @@ class QTimerMainWindow(QMainWindow):
 
 
 def main():
-	with qtimer.create_qtimer() as backend:
+	with qtimer.create_qtimer(CONFIG_PATH, DEFAULT_CONFIG_PATH) as backend:
 		app = QApplication(sys.argv)
 		window = QTimerMainWindow(backend)
 		window.show()

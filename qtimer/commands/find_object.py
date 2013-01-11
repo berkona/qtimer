@@ -64,35 +64,35 @@ class FindObject(Command):
             "timers": Timer,
             "tickets": Ticket,
             "projects": Project,
-        }.get(args.type)
+        }.get(args['type'])
 
         q = sql.query(ormClass)
 
-        if hasattr(args, 'name') and args.name:
-            q = q.filter(ormClass.name.like('%' + args.name + '%'))
+        if hasattr(args, 'name') and args['name']:
+            q = q.filter(ormClass.name.like('%' + args['name'] + '%'))
 
-        if hasattr(args, 'id') and args.id:
-            q = q.filter(ormClass.id == args.id)
+        if hasattr(args, 'id') and args['id']:
+            q = q.filter(ormClass.id == args['id'])
 
-        if hasattr(args, 'project') and args.project:
-            q = q.join(Project).filter(Project.name.like('%' + args.project + '%'))
+        if hasattr(args, 'project') and args['project']:
+            q = q.join(Project).filter(Project.name.like('%' + args['project'] + '%'))
 
-        if hasattr(args, 'ticket') and args.ticket:
-            q = q.join(Ticket).filter(Ticket.name.like('%' + args.ticket + '%'))
+        if hasattr(args, 'ticket') and args['ticket']:
+            q = q.join(Ticket).filter(Ticket.name.like('%' + args['ticket'] + '%'))
 
-        if hasattr(args, 'active') and args.active:
+        if hasattr(args, 'active') and args['active']:
             q = q.join(Session).filter(Session.end == None)
 
-        if hasattr(args, 'inactive') and args.inactive:
+        if hasattr(args, 'inactive') and args['inactive']:
             q = q.join(Session).filter(Session.end != None)
 
         # This determines the ordering of the tuple
-        fieldNames = DISPLAYED_FIELDS.get(args.type)
+        fieldNames = DISPLAYED_FIELDS.get(args['type'])
 
         mapFunc = lambda i: self._formatRow(i, fieldNames, program)
         rows = map(mapFunc, q)
         header = tuple([ s.replace('_', ' ').title() for s in fieldNames ])
-        weights = DISPLAY_WEIGHTS.get(args.type)
+        weights = DISPLAY_WEIGHTS.get(args['type'])
         program.outputRows(rows=rows, header=header, weights=weights)
 
         return q

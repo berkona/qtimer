@@ -17,7 +17,7 @@ class StartTimer(Command):
 
 	def runCommand(self, args, program):
 		session = Session(start=program.roundTime(datetime.utcnow()))
-		timer = Timer(name=args.name, ticket_id=args.ticket, sessions=[session])
+		timer = Timer(name=args['name'], ticket_id=args['ticket'], sessions=[session])
 		with autocommit(program.session) as sql:
 			sql.add(timer)
 

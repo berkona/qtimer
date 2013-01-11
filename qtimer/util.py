@@ -2,18 +2,13 @@ import logging
 
 from contextlib import contextmanager
 from datetime import datetime
-from os import path
 
 from qtimer.lib import tz
+from qtimer.env import DATA_DIR
 
 
 def expand_sql_url(url):
-	try:
-		idx = url.index('~')
-		url = url[:idx] + path.expanduser(url[idx:])
-	except ValueError:
-		pass
-	return url
+	return url.replace('DATA_DIR', DATA_DIR)
 
 
 def smart_truncate(content, length=100, suffix='...'):
@@ -39,7 +34,7 @@ def autocommit(session):
 		yield session
 		session.commit()
 	except BaseException as e:
-		logging.getLogger('qtimer').warn('Rolling back session %s because of %s.'\
+		logging.getLogger(__name__).warn('Rolling back session %s because of %s.'\
 			% (repr(session), repr(e)))
 		session.rollback()
 		raise

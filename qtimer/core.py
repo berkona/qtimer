@@ -1,22 +1,17 @@
-#! /usr/bin/env python3
-
 # System imports
 from datetime import datetime, timedelta
-from os import path, makedirs, listdir
+from os import path, listdir
 from contextlib import contextmanager
 from importlib import import_module
 
-import configparser
+
 import argparse
 import logging
 
 import logging.config
 import logging.handlers
 
-from appdirs import AppDirs
-
 # SQLALchemy
-from alembic.config import Config
 import sqlalchemy as sa
 import alembic.command
 
@@ -25,23 +20,21 @@ from qtimer.util import smart_truncate, autocommit, expand_sql_url
 from qtimer.model import Ticket, Project, PersistentVar
 from qtimer.lib import terminalsize
 from qtimer.strings import strings
+from qtimer.config import Config
+from qtimer.env import *
 
-PLUGIN_MOD = 'qtimer.plugins.%s.plugin'
-COMMANDS_MOD = 'qtimer.commands.%s'
-
-APPDIRS = AppDirs(__name__, 'Solipsis Development', roaming=True)
-
-SCRIPT_ROOT = path.dirname(path.realpath(__file__))
-DATA_DIR = APPDIRS.user_data_dir()
 
 # This is what we use for writing to the database
 SQLSession = sa.orm.sessionmaker()
 
-logging.config.fileConfig(path.join(SCRIPT_ROOT, 'alembic.ini'))
 CoreLogger = logging.getLogger(__name__)
 
 
-class QTimerCore:
+class QTimerCore(object):
+
+	def __init__(self, configPath, defaultsPath):
+		self.configPath = configPath
+		self.defaultsPath = defaultsPath
 
 	# We use getter properties to offset resource creation until we need it
 	@property
@@ -51,11 +44,10 @@ class QTimerCore:
 
 		self._commands = {}
 		commandPath = path.join(SCRIPT_ROOT, 'commands')
-		filterCommands = lambda item: not (item == '__init__.py'
-			or item == 'command.py') and path.isfile(path.join(commandPath, item))
 
 		files = (path.splitext(item)[0] for item in listdir(commandPath)
-			if filterCommands)
+			if (not (item == '__init__.py' or item == 'command.py'))
+				and path.isfile(path.join(commandPath, item)))
 
 		for f in files:
 			self.importCommand(f)
@@ -82,11 +74,10 @@ class QTimerCore:
 			return self._session
 
 		# This also has the side-effect of initializing the database and logging
-		alembic_ini = Config(path.join(SCRIPT_ROOT, 'alembic.ini'))
-		alembic.command.upgrade(alembic_ini, "head")
+		alembic.command.upgrade(self.config, "head")
 
 		self.engine = sa.create_engine(
-			expand_sql_url(alembic_ini.get_main_option("sqlalchemy.url")),
+			expand_sql_url(self.config.alembic.sqlalchemy_url),
 			encoding="utf-8", echo=False
 		)
 
@@ -100,15 +91,18 @@ class QTimerCore:
 		if hasattr(self, '_plugin'):
 			return self._plugin
 
-		if not (self.config.url and self.config.token and self.config.accountType):
+		url = self.config.account.url
+		token = self.config.account.token
+		accountType = self.config.account.type
+		if not (url and token and accountType):
 			raise RuntimeError(strings['bad_config'])
 
 		try:
-			mod = import_module(PLUGIN_MOD % self.config.accountType)
-			self._plugin = mod.load_qtimer_plugin(self.config.url, self.config.token)
+			mod = import_module(PLUGIN_MOD % accountType)
+			self._plugin = mod.load_qtimer_plugin(url, token)
 			return self._plugin
 		except ImportError:
-			raise RuntimeError(strings['no_plugin_found'] % self.config.accountType)
+			raise RuntimeError(strings['no_plugin_found'] % accountType)
 
 	@property
 	def parser(self):
@@ -134,36 +128,7 @@ class QTimerCore:
 		if hasattr(self, '_config'):
 			return self._config
 
-		if not path.exists(DATA_DIR):
-			makedirs(DATA_DIR)
-
-		configPath = path.join(DATA_DIR, 'qtimer.ini')
-
-		userConfig = configparser.ConfigParser()
-		with open(path.join(SCRIPT_ROOT, 'default.ini')) as defaultFile:
-			userConfig.readfp(defaultFile)
-
-		if not path.exists(configPath):
-			raise RuntimeError(strings['no_config'])
-
-		userConfig.read(configPath)
-
-		class Config(object):
-			pass
-
-		self._config = Config()
-
-		# userConfig fields
-		self._config.configRoot = DATA_DIR
-		self._config.configPath = configPath
-		self._config.accountType = userConfig['account']['type']
-		self._config.url = userConfig['account']['url']
-		self._config.token = userConfig['account']['token']
-		self._config.cacheLifetime = int(userConfig['account']['cache_lifetime'])
-		self._config.rounding = int(userConfig['timers']['rounding'])
-
-		self._config.verbose = userConfig['debug']['verbose'].lower() == 'true'
-
+		self._config = Config(self.configPath, self.defaultsPath)
 		return self._config
 
 	def parseArgs(self, argsOverride=None):
@@ -172,7 +137,7 @@ class QTimerCore:
 			self.parser.print_help()
 			raise RuntimeError(strings['no_op'])
 
-		return args
+		return vars(args)
 
 	def importCommand(self, f):
 		# Predict the class name to be the TitleCase of the script mod
@@ -186,9 +151,9 @@ class QTimerCore:
 		self._commands[command.COMMAND_IDENTIFIER] = command
 
 	def executeCommand(self, args):
-		command = self.commands.get(args.op, None)
+		command = self.commands.get(args['op'], None)
 		if not command:
-			raise RuntimeError('No command found matching ' + args.op)
+			raise RuntimeError('No command found matching ' + args['op'])
 		return command.runCommand(args, self)
 
 	def outputRows(self, rows=[], header=(), weights=()):
@@ -220,14 +185,15 @@ class QTimerCore:
 			logger.info(formatStr % tuple(items))
 
 	def syncConditionally(self):
-		lifetime = timedelta(minutes=self.config.cacheLifetime)
+		mins = int(self.config.account.cache_lifetime)
+		lifetime = timedelta(minutes=mins)
 
-		if (not self.lastSynced
-			or datetime.utcnow() - self.lastSynced > lifetime):
+		if (not self.lastSynced or (datetime.utcnow() - self.lastSynced) > lifetime):
 			self.sync()
 
 	def sync(self):
-		CoreLogger.info(strings['old_data'], self.config.accountType, self.config.url)
+		CoreLogger.info(strings['old_data'],
+			self.config.account.type, self.config.account.url)
 
 		with autocommit(self.session) as session:
 			project_ids = []
@@ -249,7 +215,7 @@ class QTimerCore:
 			session.merge(lastSynced)
 
 	def roundTime(self, dt):
-		roundTo = self.config.rounding
+		roundTo = int(self.config.timers.rounding)
 		seconds = (dt - dt.min).seconds
 		# // is a floor division not a comment on the following line
 		rounding = (seconds + roundTo / 2) // roundTo * roundTo
@@ -261,24 +227,28 @@ class QTimerCore:
 		CoreLogger.info('QTimerCore shutdown.')
 		CoreLogger.info('Flushing and closing all retained sessions')
 
-		self.session.flush()
-		self.session.close()
+		# If we call self.session, we will initialize the db, which would be bad
+		# If we haven't already
+		if (hasattr(self, '_session')):
+			self.session.flush()
+			self.session.close()
 
 
 @contextmanager
-def create_qtimer():
+def create_qtimer(configPath, defaultsPath):
 	CoreLogger.debug('QTimerCore created through create_qtimer.')
-	qtimer = QTimerCore()
+	qtimer = QTimerCore(configPath, defaultsPath)
 	try:
 		yield qtimer
 	finally:
 		CoreLogger.debug('Control returned to create_qtimer, destroying core')
 		qtimer.close()
-		CoreLogger.debug('Control returned to create_qtimer, destroying core')
+		CoreLogger.debug('Destroying SQLSession')
 		SQLSession.close_all()
 
 
 def main():
-	with create_qtimer() as qtimer:
+	logging.config.fileConfig(DEFAULT_CONFIG_PATH)
+	with create_qtimer(CONFIG_PATH, DEFAULT_CONFIG_PATH) as qtimer:
 		args = qtimer.parseArgs()
 		qtimer.executeCommand(args)

@@ -16,8 +16,8 @@ class PostTimer(Command):
 
 	def runCommand(self, args, program):
 		args = [
-			'find', 'timers', '--inactive', '-i', args.id, '-n', args.name,
-			'-p', args.project, '-t', args.ticket
+			'find', 'timers', '--inactive', '-i', args['id'], '-n', args['name'],
+			'-p', args['project'], '-t', args['ticket']
 		]
 		args = program.parseArgs(args)
 		timers = program.executeCommand(args).all()
