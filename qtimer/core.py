@@ -12,6 +12,8 @@ import logging.config
 import logging.handlers
 
 # SQLALchemy
+from sqlalchemy.engine import Engine
+from sqlalchemy import event
 import sqlalchemy as sa
 import alembic.command
 
@@ -232,6 +234,13 @@ class QTimerCore(object):
 		if (hasattr(self, '_session')):
 			self.session.flush()
 			self.session.close()
+
+
+@event.listen_for(Engine, 'connect')
+def set_sqlite_pragma(conn, conn_record):
+	cursor = conn.cursor()
+	cursor.execute('PRAGMA foreign_keys=ON')
+	cursor.close()
 
 
 @contextmanager

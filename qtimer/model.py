@@ -7,7 +7,6 @@ from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.sql.expression import *
 from sqlalchemy.orm import relationship
 
-from qtimer.env import allowsCascading
 
 # Base to store our metadata
 Base = declarative_base()
@@ -47,7 +46,7 @@ class PersistentVar(Base):
 
 class Project(BaseMixin, NamedMixin, Base):
 	# Defines a one-to-many relationship between Project and Ticket
-	tickets = relationship('Ticket', backref='project', passive_updates=allowsCascading())
+	tickets = relationship('Ticket', backref='project', passive_updates=False)
 
 
 class Ticket(BaseMixin, NamedMixin, Base):
@@ -55,7 +54,7 @@ class Ticket(BaseMixin, NamedMixin, Base):
 	ticket_id = Column(Integer, nullable=False, index=True)
 
 	# Defines a many-to-one relationship between Timer and Ticket
-	timers = relationship('Timer', backref='ticket', passive_updates=allowsCascading())
+	timers = relationship('Timer', backref='ticket', passive_updates=False)
 
 	# Defines a one-to-many relationship between Project and Ticket
 	project_id = Column(Integer, ForeignKey('qtimer_projects.id'), nullable=False)
@@ -69,7 +68,7 @@ class Timer(BaseMixin, NamedMixin, Base):
 	ticket_id = Column(Integer, ForeignKey('qtimer_tickets.id'), nullable=True)
 
 	# Defines a one-to-many relationship between Timer and Session
-	sessions = relationship('Session', order_by='Session.start', passive_updates=allowsCascading())
+	sessions = relationship('Session', order_by='Session.start', passive_updates=False)
 
 	@property
 	def start(self):
