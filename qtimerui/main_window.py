@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'qtimerui/main_window.ui'
+# Form implementation generated from reading ui file 'main_window.ui'
 #
-# Created: Sun Jan 13 01:10:27 2013
+# Created: Thu Jan 24 15:03:09 2013
 #      by: pyside-uic 0.2.13 running on PySide 1.1.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -68,21 +68,13 @@ class Ui_mainwindow(object):
         self.projects.setProperty("showDropIndicator", False)
         self.projects.setSelectionBehavior(QtGui.QAbstractItemView.SelectItems)
         self.projects.setObjectName("projects")
-        self.timers = QtGui.QTreeWidget(self.splitter)
+        self.timers = QtGui.QTableView(self.splitter)
         self.timers.setProperty("showDropIndicator", False)
-        self.timers.setDragDropMode(QtGui.QAbstractItemView.NoDragDrop)
-        self.timers.setAlternatingRowColors(False)
-        self.timers.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
-        self.timers.setIndentation(10)
-        self.timers.setRootIsDecorated(False)
-        self.timers.setUniformRowHeights(True)
-        self.timers.setItemsExpandable(False)
-        self.timers.setAllColumnsShowFocus(True)
-        self.timers.setColumnCount(5)
+        self.timers.setSortingEnabled(True)
+        self.timers.setCornerButtonEnabled(False)
         self.timers.setObjectName("timers")
-        self.timers.header().setDefaultSectionSize(50)
-        self.timers.header().setHighlightSections(True)
-        self.timers.header().setMinimumSectionSize(10)
+        self.timers.horizontalHeader().setStretchLastSection(True)
+        self.timers.verticalHeader().setVisible(False)
         self.verticalLayout.addWidget(self.splitter)
         mainwindow.setCentralWidget(self.centralwidget)
         self.actionStart = QtGui.QAction(mainwindow)
@@ -103,12 +95,6 @@ class Ui_mainwindow(object):
         self.stop.setText(QtGui.QApplication.translate("mainwindow", "Stop", None, QtGui.QApplication.UnicodeUTF8))
         self.post.setText(QtGui.QApplication.translate("mainwindow", "Post", None, QtGui.QApplication.UnicodeUTF8))
         self.projects.headerItem().setText(0, QtGui.QApplication.translate("mainwindow", "Projects", None, QtGui.QApplication.UnicodeUTF8))
-        self.timers.setSortingEnabled(True)
-        self.timers.headerItem().setText(0, QtGui.QApplication.translate("mainwindow", "Status", None, QtGui.QApplication.UnicodeUTF8))
-        self.timers.headerItem().setText(1, QtGui.QApplication.translate("mainwindow", "Name", None, QtGui.QApplication.UnicodeUTF8))
-        self.timers.headerItem().setText(2, QtGui.QApplication.translate("mainwindow", "Start Date", None, QtGui.QApplication.UnicodeUTF8))
-        self.timers.headerItem().setText(3, QtGui.QApplication.translate("mainwindow", "Duration", None, QtGui.QApplication.UnicodeUTF8))
-        self.timers.headerItem().setText(4, QtGui.QApplication.translate("mainwindow", "Synced", None, QtGui.QApplication.UnicodeUTF8))
         self.actionStart.setText(QtGui.QApplication.translate("mainwindow", "Start", None, QtGui.QApplication.UnicodeUTF8))
         self.actionStart.setToolTip(QtGui.QApplication.translate("mainwindow", "Create a new timer", None, QtGui.QApplication.UnicodeUTF8))
         self.actionStart.setShortcut(QtGui.QApplication.translate("mainwindow", "Ctrl+N", None, QtGui.QApplication.UnicodeUTF8))

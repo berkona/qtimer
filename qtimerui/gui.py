@@ -8,13 +8,14 @@ from PySide.QtCore import *
 from PySide.QtGui import *
 
 # QTimer imports
-from qtimer.util import format_time
+# from qtimer.util import format_time
 from qtimer.model import *
 from qtimer.env import *
 
 import qtimer.core as qtimer
 
 # UI Imports
+from qtimerui.model import TimerFilterDelegate, ORMListModelAdapter
 from qtimerui.main_window import Ui_mainwindow
 
 VERSION = '0.1'
@@ -60,6 +61,7 @@ class QTimerMainWindow(QMainWindow):
 		rootItem.setSelected(True)
 		rootItem.setExpanded(True)
 
+		# find all projects/ tickets
 		for project in session.query(Project):
 			parent = QTreeWidgetItem([ project.name ])
 			parent.project = project
@@ -69,22 +71,18 @@ class QTimerMainWindow(QMainWindow):
 				child.ticket = ticket
 				parent.addChild(child)
 
-		for timer in session.query(Timer):
-			item = QTreeWidgetItem([
-				timer.status,
-				timer.name,
-				format_time(timer.start),
-				str(self.backend.roundTime(timer.duration)),
-				str(timer.posted)
-			])
-			item.timer = timer
-			self.ui.timers.addTopLevelItem(item)
+		# Set timer model
+		delegate = TimerFilterDelegate(self.backend)
+		self.timerModel = ORMListModelAdapter(delegate)
+		self.ui.timers.setModel(self.timerModel)
 
+		# set dates
 		self.ui.date_from.setDate(QDate.currentDate())
 		self.ui.date_to.setDate(QDate.currentDate())
 
 		self.onReadSettings()
 
+		# event connections
 		self.dateFromChanged = lambda date: self.onDateChanged(self.ui.date_from_label)
 		self.dateToChanged = lambda date: self.onDateChanged(self.ui.date_to_label)
 
@@ -111,7 +109,7 @@ class QTimerMainWindow(QMainWindow):
 		settings.setValue('size', self.size())
 		settings.setValue('pos', self.pos())
 
-		settings.setValue('timersState', self.ui.timers.header().saveState())
+		settings.setValue('timersState', self.ui.timers.horizontalHeader().saveState())
 		settings.setValue('splitterState', self.ui.splitter.saveState())
 		settings.endGroup()
 
@@ -127,37 +125,26 @@ class QTimerMainWindow(QMainWindow):
 		if splitterState:
 			self.ui.splitter.restoreState(splitterState)
 
-		listColState = settings.value('timersState', None)
-		if listColState:
-			self.ui.timers.header().restoreState(listColState)
+		headerState = settings.value('timersState', None)
+		if headerState:
+			self.ui.timers.horizontalHeader().restoreState(headerState)
 
 		settings.endGroup()
 
 	def onRefreshDurations(self):
-		for i in range(self.ui.timers.topLevelItemCount()):
-			# GET CHILD & REFRESH
-			item = self.ui.timers.topLevelItem(i)
-			item.setText(3, str(self.backend.roundTime(item.timer.duration)))
+		# re-implement me
+		pass
 
 	def onFilterClicked(self, item, column):
-		self.ui.timers.clear()
+		print('onFilterClicked', 'item:', repr(item))
 
-		query = self.backend.session.query(Timer)
+		delegate = self.timerModel.delegate
 		if hasattr(item, 'ticket'):
-			query = query.filter(Timer.ticket_id == item.ticket.id)
+			delegate.setTicketId(item.ticket.id)
 		elif hasattr(item, 'project') and item.project:
-			query = query.join(Ticket).filter(Ticket.project_id == item.project.id)
-
-		for timer in query:
-			item = QTreeWidgetItem([
-				timer.status,
-				timer.name,
-				format_time(timer.start),
-				str(self.backend.roundTime(timer.duration)),
-				str(timer.posted)
-			])
-			item.timer = timer
-			self.ui.timers.addTopLevelItem(item)
+			delegate.setProjectId(item.project.id)
+		else:
+			delegate.reset()
 
 	def onStartTimers(self):
 		items = self.ui.timers.selectedItems()
@@ -178,14 +165,20 @@ class QTimerMainWindow(QMainWindow):
 					sql.add(session)
 
 	def onCreateTimers(self, items):
+		print('onCreateTimers', 'items:', repr(items))
+
 		text, ok = QInputDialog.getText(self, 'Enter Timer Name', 'Enter new timer name:')
 		if not ok:
 			return
 
 		tid = None
-		for item in items:
-			if hasattr(item, 'ticket'):
-				tid = item.ticket.id
+		item = None
+		for i in self.ui.projects.selectedItems():
+			if hasattr(i, 'ticket'):
+				item = i
+
+		if item:
+			tid = item.ticket.id
 
 		session = Session(start=self.backend.roundTime(datetime.utcnow()))
 		timer = Timer(name=text, ticket_id=tid, sessions=[session])
@@ -198,8 +191,9 @@ class QTimerMainWindow(QMainWindow):
 			raise NoItemsSelectedError('No timers selected.')
 
 		ids = []
-		for item in items:
-			ids.append(item.timer.id)
+		for i in items:
+			item = i
+			ids.append(i.timer.id)
 
 		values = {
 			Session.end: self.backend.roundTime(datetime.utcnow())
@@ -208,9 +202,15 @@ class QTimerMainWindow(QMainWindow):
 		with qtimer.autocommit(self.backend.session) as session:
 			session.query(Session).filter(Session.timer_id.in_(ids))\
 				.filter(Session.end == None).update(values, 'fetch')
+
+		item = None
+		for i in self.ui.projects.selectedItems():
+			item = i
+
 		self.onFilterClicked(item, None)
 
 	def onPostTimers(self):
+		# Implement me
 		pass
 
 	def closeEvent(self, event):
