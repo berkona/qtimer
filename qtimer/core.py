@@ -1,6 +1,6 @@
 # System imports
 from datetime import datetime, timedelta
-from os import path, listdir
+from os import path, listdir, makedirs
 from contextlib import contextmanager
 from importlib import import_module
 
@@ -12,6 +12,7 @@ import logging.config
 import logging.handlers
 
 # SQLALchemy
+from sqlalchemy.sql.expression import not_
 from sqlalchemy.engine import Engine
 from sqlalchemy import event
 import sqlalchemy as sa
@@ -34,9 +35,8 @@ CoreLogger = logging.getLogger(__name__)
 
 class QTimerCore(object):
 
-	def __init__(self, configPath, defaultsPath):
+	def __init__(self, configPath):
 		self.configPath = configPath
-		self.defaultsPath = defaultsPath
 
 	# We use getter properties to offset resource creation until we need it
 	@property
@@ -75,7 +75,7 @@ class QTimerCore(object):
 		if hasattr(self, '_session'):
 			return self._session
 
-		# This also has the side-effect of initializing the database and logging
+		# This also has the side-effect of initializing the database
 		alembic.command.upgrade(self.config, "head")
 
 		self.engine = sa.create_engine(
@@ -130,7 +130,7 @@ class QTimerCore(object):
 		if hasattr(self, '_config'):
 			return self._config
 
-		self._config = Config(self.configPath, self.defaultsPath)
+		self._config = Config(self.configPath)
 		return self._config
 
 	def parseArgs(self, argsOverride=None):
@@ -194,27 +194,30 @@ class QTimerCore(object):
 			self.sync()
 
 	def sync(self):
-		CoreLogger.info(strings['old_data'],
-			self.config.account.type, self.config.account.url)
+		CoreLogger.info(strings['old_data'], self.config.account.type,
+			self.config.account.url)
 
+		self.session.execute('PRAGMA foreign_keys=OFF')
 		with autocommit(self.session) as session:
-			project_ids = []
-			ticket_ids = []
-
+			# Truncate tables for new data, this is faster than merging
 			session.query(Project).delete()
 			session.query(Ticket).delete()
-
+			CoreLogger.debug('Getting list of projects from remote')
 			projects = self.plugin.listProjects()
 			for project in projects:
-				project_ids.append(project.id)
 				session.add(project)
+				CoreLogger.debug("Getting list of tickets for pid '%s' from remote", project.id)
 				tickets = self.plugin.listTickets(project.id)
 				for ticket in tickets:
-					ticket_ids.append(ticket.id)
 					session.add(ticket)
 
-			lastSynced = PersistentVar(name='internal.lastSynced', value=datetime.utcnow())
+			lastSynced = PersistentVar(
+				name='internal.lastSynced',
+				value=datetime.utcnow()
+			)
 			session.merge(lastSynced)
+
+		self.session.execute('PRAGMA foreign_keys=ON')
 
 	def roundTime(self, dt):
 		roundTo = int(self.config.timers.rounding)
@@ -236,17 +239,19 @@ class QTimerCore(object):
 			self.session.close()
 
 
-@event.listen_for(Engine, 'connect')
 def set_sqlite_pragma(conn, conn_record):
 	cursor = conn.cursor()
 	cursor.execute('PRAGMA foreign_keys=ON')
 	cursor.close()
 
+event.listen(Engine, 'connect', set_sqlite_pragma)
+
 
 @contextmanager
-def create_qtimer(configPath, defaultsPath):
+def create_qtimer(configPath):
+	configure_logging(configPath)
 	CoreLogger.debug('QTimerCore created through create_qtimer.')
-	qtimer = QTimerCore(configPath, defaultsPath)
+	qtimer = QTimerCore(configPath)
 	try:
 		yield qtimer
 	finally:
@@ -254,10 +259,28 @@ def create_qtimer(configPath, defaultsPath):
 		qtimer.close()
 		CoreLogger.debug('Destroying SQLSession')
 		SQLSession.close_all()
+		CoreLogger.debug('Shutting down logging')
+		logging.shutdown()
+
+
+def configure_logging(configPath):
+	if not path.exists(configPath):
+			raise RuntimeError(strings['no_config'])
+
+	if not path.exists(path.dirname(APP_DIRS.user_log_dir)):
+		makedirs(APP_DIRS.user_log_dir)
+
+	logPath = path.join(APP_DIRS.user_log_dir, LOG_NAME)
+	logging.config.fileConfig(configPath)
+
+	# We hard-core this because we want to use a platform specific directory
+	handler = logging.handlers.RotatingFileHandler(logPath, backupCount=50)
+	handler.formatter = logging.Formatter('%(asctime)s|%(levelname)-7.7s %(message)s', '%H:%M:%S')
+	handler.doRollover()
+	logging.getLogger().addHandler(handler)
 
 
 def main():
-	logging.config.fileConfig(DEFAULT_CONFIG_PATH)
-	with create_qtimer(CONFIG_PATH, DEFAULT_CONFIG_PATH) as qtimer:
+	with create_qtimer(CONFIG_PATH) as qtimer:
 		args = qtimer.parseArgs()
 		qtimer.executeCommand(args)

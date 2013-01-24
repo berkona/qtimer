@@ -10,40 +10,24 @@ class Section(object):
 
 
 class Config(config.Config):
-	def __init__(self, configPath, defaultsPath=None):
-		super(Config, self).__init__(defaultsPath)
-
-		self.parser = configparser.ConfigParser()
-		with open(defaultsPath) as defaultFile:
-			self.parser.readfp(defaultFile)
+	def __init__(self, configPath):
+		super(Config, self).__init__(configPath)
 
 		if not path.exists(configPath):
 			raise RuntimeError(strings['no_config'])
 
-		self.parser.read(configPath)
+		parser = configparser.ConfigParser()
+		with open(configPath) as configFile:
+			parser.readfp(configFile)
 
 		isLoggerSection = lambda section: not (section.startswith('logger')
 			or section.startswith('handler') or section.startswith('formatter'))
 
-		sections = filter(isLoggerSection, self.parser.sections())
+		sections = filter(isLoggerSection, parser.sections())
 		for section in sections:
 			setattr(self, section, Section())
 			mySection = getattr(self, section)
-			for option in self.parser.options(section):
+			for option in parser.options(section):
 				attr_name = option.replace('.', '_')
-				value = self.parser.get(section, option)
+				value = parser.get(section, option)
 				setattr(mySection, attr_name, value)
-
-	def get_section(self, name):
-		return dict(self.parser.items(name))
-
-	def get_section_option(self, section, name, default=None):
-		if not self.parser.has_section(section):
-			raise RuntimeError(
-				'No config file %r found, or file has no "[%s]" section'
-				% (self.parser, section))
-
-		if self.parser.has_option(section, name):
-			return self.parser.get(section, name)
-		else:
-			return default

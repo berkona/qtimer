@@ -1,10 +1,6 @@
 from __future__ import with_statement
 from alembic import context
 from sqlalchemy import engine_from_config, pool
-from logging.config import fileConfig
-
-# Custom imports
-from os import path
 
 from qtimer.util import expand_sql_url
 
@@ -14,7 +10,7 @@ config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-fileConfig(config.config_file_name)
+# fileConfig(config.config_file_name)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
@@ -27,6 +23,7 @@ target_metadata = Base.metadata
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
+
 
 def run_migrations_offline():
     """Run migrations in 'offline' mode.
@@ -46,6 +43,7 @@ def run_migrations_offline():
     with context.begin_transaction():
         context.run_migrations()
 
+
 def run_migrations_online():
     """Run migrations in 'online' mode.
 
@@ -58,15 +56,16 @@ def run_migrations_online():
     section['sqlalchemy.url'] = expand_sql_url(section['sqlalchemy.url'])
 
     engine = engine_from_config(
-                section,
-                prefix='sqlalchemy.',
-                poolclass=pool.NullPool)
+        section,
+        prefix='sqlalchemy.',
+        poolclass=pool.NullPool
+    )
 
     connection = engine.connect()
     context.configure(
-                connection=connection,
-                target_metadata=target_metadata
-                )
+        connection=connection,
+        target_metadata=target_metadata
+    )
 
     try:
         with context.begin_transaction():
@@ -74,8 +73,8 @@ def run_migrations_online():
     finally:
         connection.close()
 
+
 if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-

@@ -8,6 +8,7 @@ APP_NAME = 'qTimer'
 ORG_NAME = 'Solipsis Development'
 INI_NAME = 'qtimer.ini'
 DEFAULT_NAME = 'default.ini'
+LOG_NAME = 'debug.log'
 
 APP_DIRS = AppDirs(APP_NAME, ORG_NAME, roaming=True)
 

@@ -20,6 +20,25 @@ from qtimerui.main_window import Ui_mainwindow
 VERSION = '0.1'
 
 
+class ErrorWithDialog(Exception):
+	def __init__(self, text):
+		self.createErrorText(text)
+
+	def createErrorText(self, text):
+		msgBox = QMessageBox()
+		msgBox.setWindowTitle("I'm sorry, Dave. I'm afraid I can't do that.")
+		msgBox.setText(text)
+		msgBox.exec_()
+
+
+class NoItemsSelectedError(ErrorWithDialog):
+	pass
+
+
+class NoActionDefinedError(ErrorWithDialog):
+	pass
+
+
 class QTimerMainWindow(QMainWindow):
 
 	def __init__(self, backend, parent=None):
@@ -34,12 +53,19 @@ class QTimerMainWindow(QMainWindow):
 
 		# Setup initial projects
 		self.backend.syncConditionally()
+
+		rootItem = QTreeWidgetItem([ ' - Any - ' ])
+		rootItem.project = None
+		self.ui.projects.addTopLevelItem(rootItem)
+		rootItem.setSelected(True)
+		rootItem.setExpanded(True)
+
 		for project in session.query(Project):
-			parent = QTreeWidgetItem([project.name])
+			parent = QTreeWidgetItem([ project.name ])
 			parent.project = project
-			self.ui.projects.addTopLevelItem(parent)
+			rootItem.addChild(parent)
 			for ticket in project.tickets:
-				child = QTreeWidgetItem([ticket.name])
+				child = QTreeWidgetItem([ ticket.name ])
 				child.ticket = ticket
 				parent.addChild(child)
 
@@ -57,15 +83,7 @@ class QTimerMainWindow(QMainWindow):
 		self.ui.date_from.setDate(QDate.currentDate())
 		self.ui.date_to.setDate(QDate.currentDate())
 
-		self.actionMenu = QMenu()
-		self.actionMenu.triggered.connect(self.onActionClicked)
-		self.actionMenu.addAction('Start')
-		self.actionMenu.addAction('Stop')
-		self.actionMenu.addAction('Post')
-
-		self.ui.actions.setMenu(self.actionMenu)
-
-		self.readSettings()
+		self.onReadSettings()
 
 		self.dateFromChanged = lambda date: self.onDateChanged(self.ui.date_from_label)
 		self.dateToChanged = lambda date: self.onDateChanged(self.ui.date_to_label)
@@ -73,6 +91,9 @@ class QTimerMainWindow(QMainWindow):
 		self.ui.projects.itemClicked.connect(self.onFilterClicked)
 		self.ui.date_from.dateChanged.connect(self.dateFromChanged)
 		self.ui.date_to.dateChanged.connect(self.dateToChanged)
+		self.ui.start.clicked.connect(self.onStartTimers)
+		self.ui.stop.clicked.connect(self.onStopTimers)
+		self.ui.post.clicked.connect(self.onPostTimers)
 
 		self.durationTimer = QTimer(self)
 		self.durationTimer.timeout.connect(self.onRefreshDurations)
@@ -82,7 +103,7 @@ class QTimerMainWindow(QMainWindow):
 		if dateEdit.checkState() == Qt.Unchecked:
 			dateEdit.setCheckState(Qt.Checked)
 
-	def writeSettings(self):
+	def onWriteSettings(self):
 		settingsPath = path.join(DATA_DIR, 'qtimer.gui.ini')
 		settings = QSettings(settingsPath, QSettings.IniFormat)
 
@@ -94,7 +115,7 @@ class QTimerMainWindow(QMainWindow):
 		settings.setValue('splitterState', self.ui.splitter.saveState())
 		settings.endGroup()
 
-	def readSettings(self):
+	def onReadSettings(self):
 		settingsPath = path.join(DATA_DIR, 'qtimer.gui.ini')
 		settings = QSettings(settingsPath, QSettings.IniFormat)
 
@@ -112,14 +133,6 @@ class QTimerMainWindow(QMainWindow):
 
 		settings.endGroup()
 
-	def createErrorText(self, text):
-		msgBox = QMessageBox()
-		msgBox.setWindowTitle("I'm sorry, Dave. I'm afraid I can't do that.")
-		msgBox.setText(text)
-		msgBox.exec_()
-		return
-		setattr(self.ui, text.replace(' .', '_').lower(), msgBox)
-
 	def onRefreshDurations(self):
 		for i in range(self.ui.timers.topLevelItemCount()):
 			# GET CHILD & REFRESH
@@ -132,7 +145,7 @@ class QTimerMainWindow(QMainWindow):
 		query = self.backend.session.query(Timer)
 		if hasattr(item, 'ticket'):
 			query = query.filter(Timer.ticket_id == item.ticket.id)
-		elif hasattr(item, 'project'):
+		elif hasattr(item, 'project') and item.project:
 			query = query.join(Ticket).filter(Ticket.project_id == item.project.id)
 
 		for timer in query:
@@ -146,46 +159,43 @@ class QTimerMainWindow(QMainWindow):
 			item.timer = timer
 			self.ui.timers.addTopLevelItem(item)
 
-	def onActionClicked(self, action):
-		print('onActionClicked:', repr(action.text()))
+	def onStartTimers(self):
 		items = self.ui.timers.selectedItems()
-		{
-			'start': self.onStartTimers,
-			'stop': self.onStopTimers,
-			'post': self.onPostTimers
-		}.get(action.text().lower(), self.noAction)(items)
-
-	def onStartTimers(self, items):
 		if items:
 			# Start any paused timers
-			with qtimer.autocommit(self.backend.session) as sql:
+			self.onRestartTimers(items)
+		else:
+			# Create timer
+			self.onCreateTimers(items)
+
+	def onRestartTimers(self, items):
+		with qtimer.autocommit(self.backend.session) as sql:
 				for item in items:
 					status = item.timer.status
 					if not status == STATUS_IDLE:
 						continue
 					session = Session(start=self.backend.roundTime(datetime.utcnow()), timer_id=item.timer.id)
 					sql.add(session)
-		else:
-			# Create timer
-			text, ok = QInputDialog.getText(self, 'Enter Timer Name', 'Enter new timer name:')
-			if not ok:
-				return
 
-			item = self.ui.projects.selectedItems()
+	def onCreateTimers(self, items):
+		text, ok = QInputDialog.getText(self, 'Enter Timer Name', 'Enter new timer name:')
+		if not ok:
+			return
 
-			tid = None
+		tid = None
+		for item in items:
 			if hasattr(item, 'ticket'):
 				tid = item.ticket.id
 
-			session = Session(start=self.backend.roundTime(datetime.utcnow()))
-			timer = Timer(name=text, ticket_id=tid, sessions=[session])
-			self.backend.session.add(timer)
-			self.onFilterClicked(item, None)
+		session = Session(start=self.backend.roundTime(datetime.utcnow()))
+		timer = Timer(name=text, ticket_id=tid, sessions=[session])
+		self.backend.session.add(timer)
+		self.onFilterClicked(item, None)
 
-	def onStopTimers(self, items):
+	def onStopTimers(self):
+		items = self.ui.timers.selectedItems()
 		if not items:
-			self.createErrorText('No timers selected.')
-			return
+			raise NoItemsSelectedError('No timers selected.')
 
 		ids = []
 		for item in items:
@@ -200,19 +210,15 @@ class QTimerMainWindow(QMainWindow):
 				.filter(Session.end == None).update(values, 'fetch')
 		self.onFilterClicked(item, None)
 
-	def onPostTimers(self, items):
+	def onPostTimers(self):
 		pass
 
-	def noAction(self, items):
-		self.createErrorText('There is no implementation for this action')
-		raise RuntimeError('There is no implementation for this action')
-
 	def closeEvent(self, event):
-		self.writeSettings()
+		self.onWriteSettings()
 
 
 def main():
-	with qtimer.create_qtimer(CONFIG_PATH, DEFAULT_CONFIG_PATH) as backend:
+	with qtimer.create_qtimer(CONFIG_PATH) as backend:
 		app = QApplication(sys.argv)
 		window = QTimerMainWindow(backend)
 		window.show()

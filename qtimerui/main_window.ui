@@ -58,15 +58,47 @@
        </widget>
       </item>
       <item>
-       <widget class="QPushButton" name="actions">
+       <widget class="QPushButton" name="start">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="maximumSize">
          <size>
-          <width>100</width>
+          <width>50</width>
           <height>16777215</height>
          </size>
         </property>
         <property name="text">
-         <string>Actions</string>
+         <string>Start</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="stop">
+        <property name="maximumSize">
+         <size>
+          <width>50</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Stop</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="post">
+        <property name="maximumSize">
+         <size>
+          <width>50</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Post</string>
         </property>
        </widget>
       </item>
@@ -96,6 +128,15 @@
          <height>16777215</height>
         </size>
        </property>
+       <property name="editTriggers">
+        <set>QAbstractItemView::NoEditTriggers</set>
+       </property>
+       <property name="showDropIndicator" stdset="0">
+        <bool>false</bool>
+       </property>
+       <property name="selectionBehavior">
+        <enum>QAbstractItemView::SelectItems</enum>
+       </property>
        <column>
         <property name="text">
          <string>Projects</string>
@@ -110,7 +151,7 @@
         <enum>QAbstractItemView::NoDragDrop</enum>
        </property>
        <property name="alternatingRowColors">
-        <bool>true</bool>
+        <bool>false</bool>
        </property>
        <property name="selectionMode">
         <enum>QAbstractItemView::ExtendedSelection</enum>
@@ -133,11 +174,14 @@
        <property name="allColumnsShowFocus">
         <bool>true</bool>
        </property>
+       <property name="columnCount">
+        <number>5</number>
+       </property>
        <attribute name="headerDefaultSectionSize">
         <number>50</number>
        </attribute>
        <attribute name="headerHighlightSections">
-        <bool>false</bool>
+        <bool>true</bool>
        </attribute>
        <attribute name="headerMinimumSectionSize">
         <number>10</number>
@@ -165,11 +209,6 @@
        <column>
         <property name="text">
          <string>Synced</string>
-        </property>
-       </column>
-       <column>
-        <property name="text">
-         <string/>
         </property>
        </column>
       </widget>
