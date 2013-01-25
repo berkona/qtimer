@@ -46,7 +46,7 @@ class PersistentVar(Base):
 
 class Project(BaseMixin, NamedMixin, Base):
 	# Defines a one-to-many relationship between Project and Ticket
-	tickets = relationship('Ticket', backref='project', passive_updates=False)
+	tickets = relationship('Ticket',  order_by='Ticket.name', backref='project', passive_updates=False)
 
 
 class Ticket(BaseMixin, NamedMixin, Base):

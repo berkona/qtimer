@@ -1,3 +1,5 @@
+import logging
+
 from PySide.QtGui import *
 from PySide.QtCore import *
 from sqlalchemy import event
@@ -6,39 +8,7 @@ from qtimer.model import *
 from qtimer.util import *
 
 
-class BinaryNode(object):
-	def __init__(self, index, element, left=None, right=None):
-		self.index = index
-		self.element = element
-		self.left = left
-		self.right = right
-
-
-class BinarySearchTree(object):
-	def __init__(self, compFunc, root=None):
-		self.compFunc = compFunc
-		self.root = root
-
-	def makeEmpty(self):
-		self.root = None
-
-	def isEmpty(self):
-		return self.root == None
-
-	def find(self, index):
-		return self._find(index, self.root)
-
-	def _find(self, index, rootNode):
-		if not (rootNode):
-			return None
-
-		comparison = self.compFunc(index, rootNode.index)
-		if (comparison < 0):
-			return self._find(index, rootNode.left)
-		elif (comparison > 0):
-			return self._find(index, rootNode.right)
-		else:
-			return rootNode.element
+LOGGER = logging.getLogger(__name__)
 
 
 class FilterDelegate(QObject):
@@ -53,6 +23,9 @@ class FilterDelegate(QObject):
 
 	def columnCount(self):
 		raise RuntimeError('Implement this method')
+
+	def isActive(self, item):
+		return False
 
 	def translateData(self, data, column):
 		# No op
@@ -69,13 +42,15 @@ class TimerFilterDelegate(FilterDelegate):
 		self.ticketId = None
 		self.projectId = None
 
+		emitChangeEvent = lambda s: self.filterChanged.emit()
 		# Listen to database changes
-		event.listen(self.session, 'after_commit', lambda s: self.filterChanged.emit())
+		event.listen(self.session, 'after_commit', emitChangeEvent)
 
 	# Invariant: (self.projectId == !self.ticketId) || (self.projectId == None && self.ticketId == None)
 	def reset(self):
 		self.ticketId = None
 		self.projectId = None
+
 		self.filterChanged.emit()
 
 	def setTicketId(self, ticketId):
@@ -102,35 +77,65 @@ class TimerFilterDelegate(FilterDelegate):
 
 	def translateData(self, data, column):
 		translationFuncs = [
-			lambda t: t.status,
+			lambda t: t.status.title(),
 			lambda t: t.name,
 			lambda t: format_time(t.start),
 			lambda t: str(self.backend.roundTime(t.duration)),
 			lambda t: str(t.posted),
 		]
-
 		return translationFuncs[column](data)
 
-	def headerData(self, section, orientation, role=Qt.DisplayRole):
-		textHeader = [
-			'Status',
-			'Name',
-			'Start Time',
-			'Duration',
-			'Posted'
-		]
+	textHeader = [
+		'Status',
+		'Name',
+		'Start Time',
+		'Duration',
+		'Posted'
+	]
 
+	def headerData(self, section, orientation, role=Qt.DisplayRole):
 		if role == Qt.TextAlignmentRole:
 			if orientation == Qt.Horizontal:
 				return int(Qt.AlignLeft | Qt.AlignVCenter)
 			return Qt.AlignLeft
-		elif role == Qt.DisplayRole and orientation == Qt.Horizontal:
-			return textHeader[section]
+		elif role != Qt.DisplayRole or orientation != Qt.Horizontal:
+			return None
 
-		return None
+		return TimerFilterDelegate.textHeader[section]
+
+	def isActive(self, item):
+		return item.status == STATUS_ACTIVE
 
 	def columnCount(self):
 		return 5
+
+
+class ORMCache(object):
+	def __init__(self, activeFunc):
+		self.activeFunc = activeFunc
+		self.items = []
+		self.activeItems = []
+		self.size = 0
+		self.isValid = False
+
+	def insert(self, items):
+		itemSize = len(items)
+		LOGGER.debug('inserting %d items into cache', itemSize)
+		for idx in range(itemSize):
+			item = items[idx]
+			item.row = (self.size - 1) + idx
+			if self.activeFunc(item):
+				self.activeItems.append(item)
+			self.items.append(item)
+
+		self.size += itemSize
+
+	def empty(self):
+		LOGGER.debug('emptyCache')
+		self.items = []
+		self.activeItems = []
+		self.size = 0
+		self.isValid = False
 
 
 class ORMListModelAdapter(QAbstractTableModel):
@@ -138,25 +143,22 @@ class ORMListModelAdapter(QAbstractTableModel):
 		super(ORMListModelAdapter, self).__init__()
 
 		# Listen to updates from delegate
-		filterDelegate.filterChanged.connect(self.filterChanged)
+		filterDelegate.filterChanged.connect(self.invalidate)
 		self.delegate = filterDelegate
-		self.cache = []
 
 		# private fields, no touching
-		self._query = None
+		self._cache = ORMCache(self.delegate.isActive)
 
 	@property
-	def query(self):
-		if self._query != None:
-			return self._query
+	def cache(self):
+		if self._cache.isValid:
+			return self._cache
 
-		self._query = self.delegate.createQuery()
-		return self._query
+		q = self.delegate.createQuery()
+		self._cache.insert(q.all())
+		self._cache.isValid = True
 
-	def filterChanged(self):
-		self._query = None
-		self.cache = []
-		self.dataChanged.emit(QModelIndex(), QModelIndex())
+		return self._cache
 
 	def flags(self, index):
 		return Qt.ItemIsSelectable | Qt.ItemIsEnabled
@@ -165,6 +167,7 @@ class ORMListModelAdapter(QAbstractTableModel):
 		return self.delegate.headerData(section, orientation, role)
 
 	def data(self, index, role=Qt.DisplayRole):
+		# LOGGER.debug('index', index.isValid(), index.row(), index.column())
 		if not index.isValid():
 			return None
 
@@ -175,15 +178,29 @@ class ORMListModelAdapter(QAbstractTableModel):
 		elif role == Qt.TextAlignmentRole:
 			return int(Qt.AlignLeft | Qt.AlignVCenter)
 
-		if not self.cache:
-			self.cache = self.query.all()
-
-		realData = self.cache[index.row()]
-
-		return self.delegate.translateData(realData, index.column())
+		return self.delegate.translateData(self.getItem(index), index.column())
 
 	def rowCount(self, parent=QModelIndex()):
-		return self.query.count()
+		LOGGER.debug('rowCount', self.cache.size)
+		return self.cache.size
 
 	def columnCount(self, parent=QModelIndex()):
 		return self.delegate.columnCount()
+
+	def invalidate(self, topLeft=QModelIndex(), bottomRight=QModelIndex()):
+		isValid = topLeft.isValid() and bottomRight.isValid()
+		LOGGER.debug('invalidate', isValid, topLeft.row(), bottomRight.row())
+		if not isValid:
+			# This invalidates the cache (will be reloaded) as well
+			self.cache.empty()
+		else:
+			# TODO partial cache invalidating
+			pass
+
+		self.dataChanged.emit(topLeft, bottomRight)
+
+	def getItem(self, index):
+		if not index.isValid():
+			return None
+
+		return self.cache.items[index.row()]

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'main_window.ui'
+# Form implementation generated from reading ui file 'qtimerui/main_window.ui'
 #
-# Created: Thu Jan 24 15:03:09 2013
+# Created: Thu Jan 24 15:19:08 2013
 #      by: pyside-uic 0.2.13 running on PySide 1.1.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -70,6 +70,7 @@ class Ui_mainwindow(object):
         self.projects.setObjectName("projects")
         self.timers = QtGui.QTableView(self.splitter)
         self.timers.setProperty("showDropIndicator", False)
+        self.timers.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
         self.timers.setSortingEnabled(True)
         self.timers.setCornerButtonEnabled(False)
         self.timers.setObjectName("timers")

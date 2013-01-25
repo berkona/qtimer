@@ -275,7 +275,8 @@ def configure_logging(configPath):
 
 	# We hard-core this because we want to use a platform specific directory
 	handler = logging.handlers.RotatingFileHandler(logPath, backupCount=50)
-	handler.formatter = logging.Formatter('%(asctime)s|%(levelname)-7.7s %(message)s', '%H:%M:%S')
+	handler.formatter = logging.Formatter(
+		'%(asctime)s|%(levelname)-7.7s [%(name)s] %(message)s', '%H:%M:%S')
 	handler.doRollover()
 	logging.getLogger().addHandler(handler)
 
