@@ -7,6 +7,9 @@ from qtimer.lib import tz
 from qtimer.env import DATA_DIR
 
 
+def filter_module_prototypes(prototypeName):
+	return not ()
+
 def expand_sql_url(url):
 	return url.replace('DATA_DIR', DATA_DIR)
 

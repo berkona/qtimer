@@ -5,7 +5,11 @@ setup(
 	version='0.1.0',
 	author='Jon "Berkona" Monroe',
 	author_email='solipsis.dev@gmail.com',
-	packages=['qtimer', 'qtimerui'],
+	packages=[
+		'qtimer', 'qtimerui', 
+		'qtimer.lib', 'qtimer.commands', 
+		'qtimer.plugins', 'qtimer.schema',
+	],
 	scripts=['bin/qtimer', 'bin/qtimer-ui'],
 	license='LICENSE.txt',
 	description='A small timer program that integrates with various project management solutions',

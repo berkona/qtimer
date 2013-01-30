@@ -15,7 +15,9 @@ class ActiveCollabPlugin(PluginPrototype):
 		self.token = token
 
 	def listProjects(self):
-		req = ACRequest('projects', ac_url=self.url, api_key=self.token)
+		req = ACRequest('projects', ac_url=self.url, 
+			api_key=self.token, use_ssl=True)
+
 		makeProject = lambda item: Project(id=item['id'], name=item['name'])
 		return [ makeProject(item) for item in req.execute() ]
 
@@ -24,7 +26,7 @@ class ActiveCollabPlugin(PluginPrototype):
 			raise PluginError('Invalid project id')
 
 		req = ACRequest('projects', item_id=projectId, subcommand='tickets',
-			ac_url=self.url, api_key=self.token)
+			ac_url=self.url, api_key=self.token, use_ssl=True)
 
 		makeTicket = lambda item: Ticket(id=item['id'], name=item['name'],
 			ticket_id=item['ticket_id'], project_id=projectId)
@@ -39,5 +41,5 @@ class ActiveCollabPlugin(PluginPrototype):
 			raise PluginError('Invalid ticket id')
 
 		req = ACRequest('projects', item_id=projectId, subcommand='time/add',
-			data=data, ac_url=self.url, api_key=self.token)
+			data=data, ac_url=self.url, api_key=self.token, use_ssl=True)
 		return req.execute()
