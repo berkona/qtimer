@@ -16,4 +16,3 @@ for a given sub-command. See commands folder and command.py for details
 A plugin represents a way of retrieving data from a remote source.  Plugins
 are required to have the magic method load_qtimer_plugin(url, token).  See
 plugins/plugin.prototype.py for more details.
-meep
