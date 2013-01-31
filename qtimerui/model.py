@@ -14,8 +14,9 @@ LOGGER = logging.getLogger(__name__)
 # duck-typing to avoid unintended inheritance
 class TimerIndexProxy(object):
 
-	def __init__(self, realObject):
+	def __init__(self, realObject, backend):
 		self.wrapped = realObject
+		self.backend = backend
 
 		# We have to keep this in state memory b/c we need a reference to ourselves
 		self.translationFuncs = [
@@ -25,6 +26,12 @@ class TimerIndexProxy(object):
 			lambda t: str(self.backend.roundTime(t.duration)),
 			lambda t: "Posted" if t.posted else "Not posted",
 		]
+
+	def data(self, role=Qt.DisplayRole):
+		data = self.wrapped.data(role)
+		if not (role == Qt.DisplayRole):
+			return data
+		return self.translationFuncs[self.column()](data)
 
 	def __eq__(self, other):
 		return self.wrapped.__eq__(other)
@@ -40,14 +47,6 @@ class TimerIndexProxy(object):
 
 	def column(self):
 		return self.wrapped.column()
-
-	def data(self, role=Qt.DisplayRole):
-		data = self.wrapped.data(role)
-		if not (role == Qt.DisplayRole):
-			return data
-
-		LOGGER.info('timer: %r', data)
-		return self.translationFuncs[self.column()](data)
 
 	def flags(self):
 		return self.wrapped.flags()
@@ -74,6 +73,19 @@ class TimerIndexProxy(object):
 		return self.wrapped.sibling(row, column)
 
 
+class TimerDelegate(QStyledItemDelegate):
+
+	def __init__(self, backend, parent=None):
+		self.backend = backend
+		super(TimerDelegate, self).__init__(parent)
+
+	def paint(self, painter, option, index):
+		# Translate all calls through a proxy
+		super(QAbstractItemDelegate, self)\
+			.paint(painter, option,
+				TimerIndexProxy(index, backend))
+
+
 class FilterDelegate(QObject):
 
 	filterChanged = Signal()
@@ -89,16 +101,6 @@ class FilterDelegate(QObject):
 
 	def isActive(self, item):
 		return False
-
-
-class TimerDelegate(QStyledItemDelegate):
-
-	def __init__(self, backend, parent=None):
-		super(TimerDelegate, self).__init__(parent)
-
-	def paint(self, painter, option, index):
-		# Translate all calls through a proxy
-		super(QAbstractItemDelegate, self).paint(painter, option, TimerIndexProxy(index))
 
 
 class TimerFilterDelegate(FilterDelegate):
@@ -220,13 +222,12 @@ class ORMListModelAdapter(QAbstractTableModel):
 		return self._cache
 
 	def flags(self, index):
-		return Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsEditable
+		return Qt.ItemIsSelectable | Qt.ItemIsEnabled
 
 	def headerData(self, section, orientation, role=Qt.DisplayRole):
 		return self.delegate.headerData(section, orientation, role)
 
 	def data(self, index, role=Qt.DisplayRole):
-		# LOGGER.debug('index', index.isValid(), index.row(), index.column())
 		if not index.isValid():
 			return None
 
@@ -243,10 +244,10 @@ class ORMListModelAdapter(QAbstractTableModel):
 		if not (role == Qt.EditRole):
 			return False
 
-		return True
+		return False
 
 	def rowCount(self, parent=QModelIndex()):
-		LOGGER.debug('rowCount', self.cache.size)
+		LOGGER.debug('rowCount: %d', self.cache.size)
 		return self.cache.size
 
 	def columnCount(self, parent=QModelIndex()):
@@ -254,7 +255,7 @@ class ORMListModelAdapter(QAbstractTableModel):
 
 	def invalidate(self, topLeft=QModelIndex(), bottomRight=QModelIndex()):
 		isValid = topLeft.isValid() and bottomRight.isValid()
-		LOGGER.debug('invalidate', isValid, topLeft.row(), bottomRight.row())
+		LOGGER.debug('invalidate: %r %d %d', isValid, topLeft.row(), bottomRight.row())
 		if not isValid:
 			# This invalidates the cache (will be reloaded) as well
 			self.cache.empty()

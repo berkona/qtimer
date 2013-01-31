@@ -19,6 +19,8 @@ DISPLAY_WEIGHTS = {
 }
 
 
+# FIXME! This doesn't quite work anymore
+
 class FindObject(Command):
 
     '''
@@ -56,10 +58,10 @@ class FindObject(Command):
 
         subparser_find.add_parser('projects', parents=[common_find_parser])
 
-    def runCommand(self, args, program):
-        program.syncConditionally()
+    def runCommand(self, args, program, core):
+        core.syncConditionally()
 
-        sql = program.session
+        sql = core.session
         ormClass = {
             "timers": Timer,
             "tickets": Ticket,
@@ -89,7 +91,7 @@ class FindObject(Command):
         # This determines the ordering of the tuple
         fieldNames = DISPLAYED_FIELDS.get(args['type'])
 
-        mapFunc = lambda i: self._formatRow(i, fieldNames, program)
+        mapFunc = lambda i: self._formatRow(i, fieldNames, core)
         rows = map(mapFunc, q)
         header = tuple([ s.replace('_', ' ').title() for s in fieldNames ])
         weights = DISPLAY_WEIGHTS.get(args['type'])
@@ -97,15 +99,12 @@ class FindObject(Command):
 
         return q
 
-    def _formatRow(self, row, fieldNames, program):
+    def _formatRow(self, row, fieldNames, core):
         items = vars(row)
         if isinstance(row, Timer):
-            items['start'] = format_time(row.sessions[0].start)
+            items['start'] = format_time(row.start)
             items['duration'] = timedelta()
-            for session in row.sessions:
-                end = session.end if session.end else datetime.utcnow()
-                items['duration'] += (end - session.start)
-            items['duration'] = program.roundTime(items['duration'])
+            items['duration'] = core.roundTime(row.duration)
             items['ticket'] = '%d: %s' % (row.ticket.id, row.ticket.name) \
                 if row.ticket else None
 

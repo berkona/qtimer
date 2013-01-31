@@ -14,11 +14,11 @@ class EndTimer(Command):
 	def addArguments(self, parser):
 		parser.add_argument('name', help=strings['command_name'])
 
-	def runCommand(self, args, program):
-		with autocommit(program.session) as session:
+	def runCommand(self, args, program, core):
+		with autocommit(core.session) as session:
 
 			values = {
-				Session.end: program.roundTime(datetime.utcnow())
+				Session.end: core.roundTime(datetime.utcnow())
 			}
 
 			remove_tuples = lambda row: row[0]

@@ -14,7 +14,7 @@ class PostTimer(Command):
 		parser.add_argument('-p', '--project')
 		parser.add_argument('-t', '--ticket')
 
-	def runCommand(self, args, program):
+	def runCommand(self, args, program, core):
 		args = [
 			'find', 'timers', '--inactive', '-i', args['id'], '-n', args['name'],
 			'-p', args['project'], '-t', args['ticket']
