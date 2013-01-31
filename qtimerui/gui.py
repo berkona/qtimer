@@ -218,7 +218,7 @@ class QTimerMainWindow(QMainWindow):
 		for i in self.ui.projects.selectedItems():
 			item = i
 
-		self.onFilterClicked(item, None)
+		# self.onFilterClicked(item, None)
 
 	def onPostTimers(self):
 		# Implement me
