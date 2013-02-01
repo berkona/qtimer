@@ -31,6 +31,7 @@ from qtimer.env import *
 SQLSession = sa.orm.sessionmaker()
 
 CoreLogger = logging.getLogger(__name__)
+CoreOutput = logging.getLogger('output')
 
 
 class QTimerCore(object):
@@ -78,8 +79,10 @@ class QTimerCore(object):
 		# This also has the side-effect of initializing the database
 		alembic.command.upgrade(self.config, "head")
 
+		print('sqlalchemy_url:', self.config.alembic.sqlalchemy_url)
+
 		self.engine = sa.create_engine(
-			expand_sql_url(self.config.alembic.sqlalchemy_url),
+			self.config.alembic.sqlalchemy_url,
 			encoding="utf-8", echo=False
 		)
 
@@ -136,10 +139,12 @@ class QTimerCore(object):
 	def parseArgs(self, argsOverride=None):
 		args = self.parser.parse_args(argsOverride)
 		if not args.op:
-			self.parser.print_help()
-			raise RuntimeError(strings['no_op'])
+			raise ArgParseError(strings['no_op'])
 
 		return vars(args)
+
+	def printHelp(self):
+		self.parser.print_help()
 
 	def importCommand(self, f):
 		# Predict the class name to be the TitleCase of the script mod
@@ -156,10 +161,10 @@ class QTimerCore(object):
 		command = self.commands.get(args['op'], None)
 		if not command:
 			raise RuntimeError('No command found matching ' + args['op'])
+			
 		return command.runCommand(args, self)
 
 	def outputRows(self, rows=[], header=(), weights=()):
-		logger = logging.getLogger('output')
 		if not weights:
 			lenHeader = len(header)
 			weights = tuple([(1 / lenHeader) for i in range(lenHeader)])
@@ -176,15 +181,15 @@ class QTimerCore(object):
 			formatStr += '%-' + str(width) + 's'
 			widths.append(width)
 
-		logger.info(formatStr % header)
-		logger.info('-' * totalWidth)
+		CoreOutput.info(formatStr % header)
+		CoreOutput.info('-' * totalWidth)
 		for row in rows:
 			items = []
 			for i, item in enumerate(row):
 				if isinstance(item, str) and len(item) > widths[i]:
 					item = smart_truncate(item, widths[i])
 				items.append(item)
-			logger.info(formatStr % tuple(items))
+			CoreOutput.info(formatStr % tuple(items))
 
 	def syncConditionally(self):
 		mins = int(self.config.account.cache_lifetime)
@@ -265,23 +270,29 @@ def create_qtimer(configPath):
 
 def configure_logging(configPath):
 	if not path.exists(configPath):
-			raise RuntimeError(strings['no_config'])
+		raise RuntimeError(strings['no_config'])
 
-	if not path.exists(path.dirname(APP_DIRS.user_log_dir)):
-		makedirs(APP_DIRS.user_log_dir)
-
-	logPath = path.join(APP_DIRS.user_log_dir, LOG_NAME)
 	logging.config.fileConfig(configPath)
 
 	# We hard-core this because we want to use a platform specific directory
-	handler = logging.handlers.RotatingFileHandler(logPath, backupCount=50)
+	if not path.exists(path.dirname(LOG_PATH)):
+		makedirs(path.dirname(LOG_PATH))
+
+	handler = logging.handlers.RotatingFileHandler(LOG_PATH, backupCount=50)
 	handler.formatter = logging.Formatter(
 		'%(asctime)s|%(levelname)-7.7s [%(name)s] %(message)s', '%H:%M:%S')
 	handler.doRollover()
 	logging.getLogger().addHandler(handler)
 
 
+
+class ArgParseError(Exception):
+	pass
+
 def main():
 	with create_qtimer(CONFIG_PATH) as qtimer:
-		args = qtimer.parseArgs()
-		qtimer.executeCommand(args)
+		try:
+			args = qtimer.parseArgs()
+			qtimer.executeCommand(args)
+		except ArgParseError:
+			qtimer.printHelp()

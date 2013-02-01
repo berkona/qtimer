@@ -9,6 +9,7 @@ setup(
 		'qtimer', 'qtimerui', 
 		'qtimer.lib', 'qtimer.commands', 
 		'qtimer.plugins', 'qtimer.schema',
+		'qtimer.schema.versions'
 	],
 	scripts=['bin/qtimer', 'bin/qtimer-ui'],
 	license='LICENSE.txt',
