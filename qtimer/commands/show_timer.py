@@ -11,6 +11,6 @@ class ShowTimer(Command):
 	COMMAND_IDENTIFIER = 'show'
 	COMMAND_HELP = strings['command_show']
 
-	def runCommand(self, args, program):
+	def runCommand(self, args, program, core):
 		args = program.parseArgs(['find', 'timers', '-a'])
 		return program.executeCommand(args)

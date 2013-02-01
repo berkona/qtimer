@@ -1,7 +1,7 @@
 from distutils.core import setup
 
 setup(
-	name='QTimer',
+	name='qTimer',
 	version='0.1.0',
 	author='Jon "Berkona" Monroe',
 	author_email='solipsis.dev@gmail.com',

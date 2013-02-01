@@ -1,7 +1,10 @@
 from qtimer.util import parse_time, autocommit
 
+from qtimer.model import Timer
+
 from qtimer.commands.command import Command
 from qtimer.strings import strings
+
 
 class EditTimer(Command):
 
@@ -14,8 +17,8 @@ class EditTimer(Command):
 	''' Set an optional help message for this command. '''
 	COMMAND_HELP = strings['command_edit']
 
-	def runCommand(self, args, program):
-		with autocommit(program.session) as session:
+	def runCommand(self, args, program, core):
+		with autocommit(core.session) as session:
 			q = session.query(Timer).filter(Timer.name.like('%' + args['name'] + '%'))
 			values = {}
 			if args['start']:

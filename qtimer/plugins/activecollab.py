@@ -1,5 +1,8 @@
+# This is the real library we use
+# we're just 'talking' like qTimer now
+from activecollab.library import ACRequest
+
 from qtimer.plugins.prototype import PluginPrototype, PluginError
-from qtimer.plugins.activecollab.library import ACRequest
 from qtimer.model import Project, Ticket
 
 

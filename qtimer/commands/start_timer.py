@@ -15,10 +15,10 @@ class StartTimer(Command):
 		parser.add_argument('name', help=strings['command_name'])
 		parser.add_argument('-t', '--ticket', type=int, help=strings['command_start_group'])
 
-	def runCommand(self, args, program):
-		session = Session(start=program.roundTime(datetime.utcnow()))
+	def runCommand(self, args, program, core):
+		session = Session(start=core.roundTime(datetime.utcnow()))
 		timer = Timer(name=args['name'], ticket_id=args['ticket'], sessions=[session])
-		with autocommit(program.session) as sql:
+		with autocommit(core.session) as sql:
 			sql.add(timer)
 
 		args = program.parseArgs(['show'])
