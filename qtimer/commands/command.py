@@ -15,10 +15,12 @@ class Command:
 		given the args you added to the parser in addArguments as well as the
 		program to run database commands, and access global data
 		'''
+		# IMPLEMENT ME
 		raise RuntimeError('You must implement this method')
 
 	def addArguments(self, parser):
 		'''
 		Optional. Add all required args for this command.
 		'''
+		# IMPLEMENT ME
 		pass
