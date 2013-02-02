@@ -44,7 +44,7 @@ class QTimerCore(object):
 			.filter(PersistentVar.name.like('internal.lastSynced'))
 		try:
 			self._lastSynced = q.one().value
-			# CoreLogger.debug('lastSynced: %s, now: %s, delta: %s', self._lastSynced, datetime.utcnow(), datetime.utcnow() - self._lastSynced)
+			CoreLogger.debug('lastSynced: %s, now: %s, delta: %s', self._lastSynced, datetime.utcnow(), datetime.utcnow() - self._lastSynced)
 			return self._lastSynced
 		except BaseException as e:
 			CoreLogger.warn('Encountered exception: %s', repr(e))
@@ -58,7 +58,7 @@ class QTimerCore(object):
 		# This also has the side-effect of initializing the database
 		alembic.command.upgrade(self.config, "head")
 
-		print('sqlalchemy_url:', self.config.alembic.sqlalchemy_url)
+		CoreLogger.debug('sqlalchemy_url: %s', self.config.alembic.sqlalchemy_url)
 
 		self.engine = sa.create_engine(
 			self.config.alembic.sqlalchemy_url,
