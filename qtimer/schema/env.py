@@ -53,7 +53,6 @@ def run_migrations_online():
     """
 
     section = config.get_section(config.config_ini_section)
-    print('db uri:', section['sqlalchemy.url'])
     section['sqlalchemy.url'] = expand_sql_url(section['sqlalchemy.url'])
 
     engine = engine_from_config(
