@@ -21,9 +21,12 @@ class EndTimer(Command):
 				Session.end: core.roundTime(datetime.utcnow())
 			}
 
-			session.query(Session).join(Timer).filter()\
-			.filter(Timer.name.like('%' + args['name'] + '%'))\
-			.filter(Session.end == None).update(values, 'fetch')
+			remove_tuples = lambda row: row[0]
+			ids = map(remove_tuples, session.query(Timer.id).filter(
+				Timer.name.like('%' + args['name'] + '%')))
+
+			session.query(Session).filter(Session.timer_id.in_(ids))\
+				.filter(Session.end == None).update(values, 'fetch')
 
 		args = program.parseArgs([ 'find', 'timers', '-n', args['name'] ])
 		return program.executeCommand(args)
