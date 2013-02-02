@@ -8,13 +8,13 @@ from qtimer.strings import strings
 import argparse
 
 DISPLAYED_FIELDS = {
-    'timers': ( 'id', 'name', 'start', 'duration', 'ticket', 'posted', ),
+    'timers': ( 'id', 'name', 'start', 'duration', 'ticket', 'status', 'posted', ),
     'tickets': ( 'id', 'name', 'ticket_id', 'project_id', ),
     'projects': ( 'id', 'name', ),
 }
 
 DISPLAY_WEIGHTS = {
-    'timers': (0.1, 0.18, 0.16, 0.1, 0.42, 0.04),
+    'timers': (0.1, 0.18, 0.16, 0.1, 0.3, 0.12, 0.04),
     'tickets': (0.1, 0.7, 0.1, 0.1)
 }
 
@@ -48,6 +48,7 @@ class FindObject(Command):
             action='store_true', default=False)
         parsers_find_timers.add_argument('--inactive',
             action='store_true', default=False)
+        parsers_find_timers.add_argument('-s', '--status')
         parsers_find_timers.add_argument('-p', '--project')
         parsers_find_timers.add_argument('-t', '--ticket')
 
@@ -59,7 +60,6 @@ class FindObject(Command):
         subparser_find.add_parser('projects', parents=[common_find_parser])
 
     def runCommand(self, args, program, core):
-        print(repr(args))
         core.syncConditionally()
 
         sql = core.session
@@ -72,34 +72,38 @@ class FindObject(Command):
 
         q = sql.query(ormClass)
 
-        if args['name']:
+        if 'name' in args and args['name']:
             q = q.filter(ormClass.name.like('%' + args['name'] + '%'))
 
-        if args['id']:
+        if 'id' in args and args['id']:
             q = q.filter(ormClass.id == args['id'])
 
-        if args['project']:
+        if 'project' in args and args['project']:
             q = q.join(Project).filter(Project.name.like('%' + args['project'] + '%'))
 
-        if args['ticket']:
+        if 'ticket' in args and args['ticket']:
             q = q.join(Ticket).filter(Ticket.name.like('%' + args['ticket'] + '%'))
 
-        if args['active']:
+        if 'active' in args and args['active']:
             q = q.join(Session).filter(Session.end == None)
 
-        if args['inactive']:
+        if 'inactive' in args and args['inactive']:
             q = q.join(Session).filter(Session.end != None)
+
+        # Filter by status if asked
+        if 'status' in args and args['status']:
+            q = filter(lambda t: args['status'].lower() in t.status.lower(), q)
 
         # This determines the ordering of the tuple
         fieldNames = DISPLAYED_FIELDS.get(args['type'])
 
         mapFunc = lambda i: self._formatRow(i, fieldNames, core)
         rows = map(mapFunc, q)
+
         header = tuple([ s.replace('_', ' ').title() for s in fieldNames ])
         weights = DISPLAY_WEIGHTS.get(args['type'])
         program.outputRows(rows=rows, header=header, weights=weights)
 
-        print(str(q))
         return q
 
     def _formatRow(self, row, fieldNames, core):
@@ -110,5 +114,6 @@ class FindObject(Command):
             items['duration'] = core.roundTime(row.duration)
             items['ticket'] = '%d: %s' % (row.ticket.id, row.ticket.name) \
                 if row.ticket else None
+            items['status'] = row.status.title()
 
         return tuple([ items[key] for key in fieldNames ])
