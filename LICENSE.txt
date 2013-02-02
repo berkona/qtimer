@@ -1,1 +1,2 @@
-LICENSE COMING SOON, ALL RIGHTS RESERVED FOR NOW
+qTimer is released for non-commercial usage under the GPL license.
+See COPYING.txt for details.
