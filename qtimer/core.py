@@ -19,7 +19,7 @@ import alembic.command
 
 # Custom
 from qtimer.model import Ticket, Project, PersistentVar
-from qtimer.util import autocommit, expand_sql_url
+from qtimer.util import autocommit
 from qtimer.strings import strings
 from qtimer.config import Config
 from qtimer.env import *
@@ -149,7 +149,7 @@ class QTimerCore(object):
 def set_sqlite_pragma(conn, conn_record):
 	cursor = conn.cursor()
 	cursor.execute('PRAGMA foreign_keys=ON')
- 	cursor.close()
+	cursor.close()
 
 event.listen(Engine, 'connect', set_sqlite_pragma)
 

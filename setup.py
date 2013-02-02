@@ -1,4 +1,9 @@
 from distutils.core import setup
+from distutils.dir_util import copy_tree
+
+from os import makedirs, path
+
+from qtimer.env import DATA_DIR, SCRIPT_ROOT
 
 setup(
 	name='qTimer',
@@ -20,3 +25,12 @@ setup(
 		'appdirs >= 1.2.0'
 	],
 )
+
+print("Copying schema information to user data directory")
+
+schemaDest = path.join(DATA_DIR, 'schema')
+
+if not path.exists(schemaDest):
+	makedirs(schemaDest)
+
+copy_tree(path.join(SCRIPT_ROOT, 'schema'), schemaDest)

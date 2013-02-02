@@ -3,8 +3,7 @@ import configparser
 from os import path
 
 from qtimer.strings import strings
-from qtimer.env import SCRIPT_ROOT
-from qtimer.util import expand_sql_url
+from qtimer.util import expand_sql_url, expand_env_var
 
 
 class Section(object):
@@ -35,7 +34,7 @@ class Config(config.Config):
 				setattr(mySection, attr_name, value)
 
 		if hasattr(self, 'alembic') and hasattr(self.alembic, 'script_location'):
-			self.alembic.script_location = self.alembic.script_location.replace('qtimer', SCRIPT_ROOT)
+			self.alembic.script_location = expand_env_var('DATA_DIR', self.alembic.script_location)
 			self.set_main_option('script_location', self.alembic.script_location)
 
 		if hasattr(self, 'alembic') and hasattr(self.alembic, 'sqlalchemy_url'):

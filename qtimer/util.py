@@ -4,14 +4,22 @@ from contextlib import contextmanager
 from datetime import datetime
 
 from qtimer.lib import tz
-from qtimer.env import DATA_DIR
+import qtimer.env
 
 
 def filter_module_prototypes(prototypeName):
 	return not ()
 
+
 def expand_sql_url(url):
-	return url.replace('DATA_DIR', DATA_DIR)
+	return expand_env_var('DATA_DIR', url)
+
+
+def expand_env_var(varname, string):
+	if not hasattr(qtimer.env, varname):
+		raise RuntimeError('Environment does not have given variable')
+	varval = getattr(qtimer.env, varname)
+	return string.replace(varname, varval)
 
 
 def smart_truncate(content, length=100, suffix='...'):
