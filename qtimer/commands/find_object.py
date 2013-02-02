@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from qtimer.model import Timer, Session, Ticket, Project
 from qtimer.commands.command import Command
@@ -59,9 +59,11 @@ class FindObject(Command):
         subparser_find.add_parser('projects', parents=[common_find_parser])
 
     def runCommand(self, args, program, core):
+        print(repr(args))
         core.syncConditionally()
 
         sql = core.session
+
         ormClass = {
             "timers": Timer,
             "tickets": Ticket,
@@ -70,22 +72,22 @@ class FindObject(Command):
 
         q = sql.query(ormClass)
 
-        if hasattr(args, 'name') and args['name']:
+        if args['name']:
             q = q.filter(ormClass.name.like('%' + args['name'] + '%'))
 
-        if hasattr(args, 'id') and args['id']:
+        if args['id']:
             q = q.filter(ormClass.id == args['id'])
 
-        if hasattr(args, 'project') and args['project']:
+        if args['project']:
             q = q.join(Project).filter(Project.name.like('%' + args['project'] + '%'))
 
-        if hasattr(args, 'ticket') and args['ticket']:
+        if args['ticket']:
             q = q.join(Ticket).filter(Ticket.name.like('%' + args['ticket'] + '%'))
 
-        if hasattr(args, 'active') and args['active']:
+        if args['active']:
             q = q.join(Session).filter(Session.end == None)
 
-        if hasattr(args, 'inactive') and args['inactive']:
+        if args['inactive']:
             q = q.join(Session).filter(Session.end != None)
 
         # This determines the ordering of the tuple
@@ -97,6 +99,7 @@ class FindObject(Command):
         weights = DISPLAY_WEIGHTS.get(args['type'])
         program.outputRows(rows=rows, header=header, weights=weights)
 
+        print(str(q))
         return q
 
     def _formatRow(self, row, fieldNames, core):
