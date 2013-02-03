@@ -28,7 +28,10 @@ class EditTimer(Command):
 			if args['ticket']:
 				values[Timer.ticket_id] = args['ticket']
 
-			return q.update(values)
+			q.update(values)
+
+		args = program.parseArgs([ 'find', 'timers', '--id', str(args['id']) ])
+		return program.executeCommand(args)
 
 	def addArguments(self, parser):
 		parser.add_argument('id', type=int, help=strings['command_id'])
