@@ -1,4 +1,9 @@
 from qtimer.commands.command import Command
+from qtimer.model import Session, Timer
+from qtimer.util import autocommit
+from qtimer.strings import strings
+
+from datetime import datetime
 
 
 class RestartCommand(Command):
@@ -18,12 +23,17 @@ class RestartCommand(Command):
 		given the args you added to the parser in addArguments as well as the
 		program to run database commands, and access global data
 		'''
-		# IMPLEMENT ME
-		pass
+		timer = core.session.query(Timer).filter(Timer.id == args['id']).one()
+		session = Session(timer_id=timer.id, start=core.roundTime(datetime.utcnow()))
+		with autocommit(core.session) as sql:
+			sql.add(session)
+
+		args = program.parseArgs([ 'find', 'timers', '--id', str(args['id']) ])
+		return program.executeCommand(args)
 
 	def addArguments(self, parser):
 		'''
 		Optional. Add all required args for this command.
 		'''
-		# IMPLEMENT ME
+		parser.add_argument('id', type=int, help=strings['command_id'])
 		pass
