@@ -14,9 +14,9 @@ setup(
 		['schema/*.py', 'schema/versions/*.py', 'default.ini'],
 	},
 	scripts=['bin/qtimer', ],
-	license='LICENSE.txt',
+	license='GPL/Multi-license: see LICENSE.txt',
 	description='A small timer program that integrates with various project management solutions',
-	long_description=open('README.txt').read(),
+	long_description=open('README').read(),
 	install_requires=[
 		'sqlalchemy >= 0.7.9',
 		'alembic >= 0.4.1',
