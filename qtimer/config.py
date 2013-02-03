@@ -34,7 +34,7 @@ class Config(config.Config):
 				setattr(mySection, attr_name, value)
 
 		if hasattr(self, 'alembic') and hasattr(self.alembic, 'script_location'):
-			self.alembic.script_location = expand_env_var('DATA_DIR', self.alembic.script_location)
+			self.alembic.script_location = expand_env_var('SCRIPT_ROOT', self.alembic.script_location)
 			self.set_main_option('script_location', self.alembic.script_location)
 
 		if hasattr(self, 'alembic') and hasattr(self.alembic, 'sqlalchemy_url'):
