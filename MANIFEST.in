@@ -1,2 +1,2 @@
-ls buinclude *.txt
+include *.txt
 include setup.py
