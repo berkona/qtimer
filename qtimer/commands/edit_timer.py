@@ -19,7 +19,7 @@ class EditTimer(Command):
 
 	def runCommand(self, args, program, core):
 		with autocommit(core.session) as session:
-			q = session.query(Timer).filter(Timer.name.like('%' + args['name'] + '%'))
+			q = session.query(Timer).filter(Timer.id == args['id'])
 			values = {}
 			if args['start']:
 				values[Timer.start] = args['start']
@@ -31,7 +31,7 @@ class EditTimer(Command):
 			return q.update(values)
 
 	def addArguments(self, parser):
-		parser.add_argument('name', help=strings['command_name'])
+		parser.add_argument('id', type=int, help=strings['command_id'])
 		parser.add_argument('-s', '--start', type=parse_time,
 			help=strings['command_edit_start'])
 		parser.add_argument('-e', '--end', type=parse_time,

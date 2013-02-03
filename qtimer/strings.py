@@ -1,6 +1,7 @@
 strings = {
 	'command_title': 'Available commands',
 	'command_name': 'Name of object to select',
+	'command_id': 'Id of object to select',
 	'command_start': 'Create a new timer and start it',
 	'command_start_note': 'An optional note for this timer',
 	'command_start_group': 'An optional group name',
