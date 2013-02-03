@@ -1,2 +1,2 @@
-include *.txt
-recursive-include schema/*.py
+ls buinclude *.txt
+include setup.py

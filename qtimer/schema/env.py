@@ -38,6 +38,7 @@ def run_migrations_offline():
 
     """
     url = expand_sql_url(config.get_main_option("sqlalchemy.url"))
+    print(url)
     context.configure(url=url)
 
     with context.begin_transaction():
