@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from qtimer.commands.command import Command
-from qtimer.model import Timer, Session
+from qtimer.model import Session
 from qtimer.strings import strings
 from qtimer.util import autocommit
 
@@ -12,21 +12,16 @@ class EndTimer(Command):
 	COMMAND_HELP = strings['command_end']
 
 	def addArguments(self, parser):
-		parser.add_argument('name', help=strings['command_name'])
+		parser.add_argument('id', type=int, help=strings['command_id'])
 
 	def runCommand(self, args, program, core):
+		values = {
+			Session.end: core.roundTime(datetime.utcnow())
+		}
+
 		with autocommit(core.session) as session:
+			session.query(Session).filter(Session.timer_id == args['id'])\
+				.filter(Session.end == None).update(values)
 
-			values = {
-				Session.end: core.roundTime(datetime.utcnow())
-			}
-
-			remove_tuples = lambda row: row[0]
-			ids = map(remove_tuples, session.query(Timer.id).filter(
-				Timer.name.like('%' + args['name'] + '%')))
-
-			session.query(Session).filter(Session.timer_id.in_(ids))\
-				.filter(Session.end == None).update(values, 'fetch')
-
-		args = program.parseArgs([ 'find', 'timers', '-n', args['name'] ])
+		args = program.parseArgs([ 'find', 'timers', '--id', str(args['id']) ])
 		return program.executeCommand(args)
