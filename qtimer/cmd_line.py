@@ -61,7 +61,6 @@ class QTimerCommandLine(object):
 		args = self.parser.parse_args(argsOverride)
 		if not args.op:
 			self.parser.print_help()
-			raise RuntimeError(strings['no_op'])
 
 		return vars(args)
 

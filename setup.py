@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
 	name='qTimer',
-	version='0.1.2',
+	version='0.1.3',
 	author='Jon "Berkona" Monroe',
 	author_email='solipsis.dev@gmail.com',
 	url='https://github.com/berkona/qtimer',
