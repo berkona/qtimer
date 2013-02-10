@@ -6,9 +6,9 @@ from qtimer.strings import strings
 from qtimer.util import autocommit
 
 
-class EndTimer(Command):
+class StopTimer(Command):
 
-	COMMAND_IDENTIFIER = 'end'
+	COMMAND_IDENTIFIER = 'stop'
 	COMMAND_HELP = strings['command_end']
 
 	def addArguments(self, parser):

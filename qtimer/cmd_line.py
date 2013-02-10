@@ -43,7 +43,9 @@ class QTimerCommandLine(object):
 		if hasattr(self, '_parser'):
 			return self._parser
 
-		parser = argparse.ArgumentParser()
+		parser = argparse.ArgumentParser(prog=APP_NAME)
+		parser.add_argument('--version',
+			action='version', version='%(prog)s ' + VERSION)
 
 		subparsers = parser.add_subparsers(title=strings['command_title'], dest='op')
 

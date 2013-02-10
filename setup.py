@@ -1,8 +1,11 @@
+#! /usr/bin/env python3
+
 from distutils.core import setup
+from qtimer.env import VERSION, APP_NAME
 
 setup(
-	name='qTimer',
-	version='0.1.3',
+	name=APP_NAME,
+	version=VERSION,
 	author='Jon "Berkona" Monroe',
 	author_email='solipsis.dev@gmail.com',
 	url='https://github.com/berkona/qtimer',

@@ -1,13 +1,15 @@
 from appdirs import AppDirs
 from os import path
 
-PLUGIN_MOD = 'qtimer.plugins.%s'
-COMMANDS_MOD = 'qtimer.commands.%s'
-
 APP_NAME = 'qTimer'
 ORG_NAME = 'Solipsis Development'
 INI_NAME = '.qtimer'
 LOG_NAME = 'debug.log'
+
+VERSION = '0.1.4'
+
+PLUGIN_MOD = 'qtimer.plugins.%s'
+COMMANDS_MOD = 'qtimer.commands.%s'
 
 APP_DIRS = AppDirs(APP_NAME, ORG_NAME, roaming=True)
 
