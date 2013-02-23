@@ -55,6 +55,9 @@ class QTimerCore(object):
 		if hasattr(self, '_session'):
 			return self._session
 
+		if not path.exists(DATA_DIR):
+			makedirs(DATA_DIR)
+
 		# This also has the side-effect of initializing the database
 		alembic.command.upgrade(self.config, "head")
 
@@ -78,7 +81,7 @@ class QTimerCore(object):
 		url = self.config.account.url
 		token = self.config.account.token
 		accountType = self.config.account.type
-		if not (url and token and accountType):
+		if ((not accountType) and (accountType != 'offline' and (not url or not token))):
 			raise RuntimeError(strings['bad_config'])
 
 		mod = import_module(PLUGIN_MOD % accountType)
@@ -96,33 +99,41 @@ class QTimerCore(object):
 	def syncConditionally(self):
 		mins = int(self.config.account.cache_lifetime)
 		lifetime = timedelta(minutes=mins)
-
-		if (not self.lastSynced or (datetime.utcnow() - self.lastSynced) > lifetime):
+		doSync = not self.lastSynced or (datetime.utcnow() - self.lastSynced) > lifetime
+		if doSync:
 			self.sync()
 
 	def sync(self):
-		CoreLogger.info(strings['old_data'], self.config.account.type,
-			self.config.account.url)
+		accountType = self.config.account.type
+		accountUrl = self.config.account.url
+
+		CoreLogger.info(strings['old_data'], accountType, accountUrl)
 
 		self.session.execute('PRAGMA foreign_keys=OFF')
-		with autocommit(self.session) as session:
-			# Truncate tables for new data, this is faster than merging
-			session.query(Project).delete()
-			session.query(Ticket).delete()
-			CoreLogger.debug('Getting list of projects from remote')
-			projects = self.plugin.listProjects()
-			for project in projects:
-				session.add(project)
-				CoreLogger.debug("Getting list of tickets for pid '%s' from remote", project.id)
-				tickets = self.plugin.listTickets(project.id)
-				for ticket in tickets:
-					session.add(ticket)
 
-			lastSynced = PersistentVar(
-				name='internal.lastSynced',
-				value=datetime.utcnow()
-			)
-			session.merge(lastSynced)
+		# Prevent exceptions from destroying our foreign key support
+		try:
+			with autocommit(self.session) as session:
+				# Truncate tables for new data, this is faster than merging
+				session.query(Project).delete()
+				session.query(Ticket).delete()
+				CoreLogger.debug('Getting list of projects from remote')
+				projects = self.plugin.listProjects()
+				for project in projects:
+					session.add(project)
+					CoreLogger.debug("Getting list of tickets for pid '%s' from remote", project.id)
+					tickets = self.plugin.listTickets(project.id)
+					for ticket in tickets:
+						session.add(ticket)
+
+				lastSynced = PersistentVar(
+					name='internal.lastSynced',
+					value=datetime.utcnow()
+				)
+				session.merge(lastSynced)
+		except:
+			CoreLogger.exception('Could not sync with remote source %s:%s',
+				accountType, accountUrl)
 
 		self.session.execute('PRAGMA foreign_keys=ON')
 

@@ -6,7 +6,7 @@ ORG_NAME = 'Solipsis Development'
 INI_NAME = '.qtimer'
 LOG_NAME = 'debug.log'
 
-VERSION = '0.1.4'
+VERSION = '0.1.5'
 
 PLUGIN_MOD = 'qtimer.plugins.%s'
 COMMANDS_MOD = 'qtimer.commands.%s'
