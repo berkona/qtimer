@@ -1,6 +1,11 @@
 from qtimer.commands.command import Command
 from qtimer.util import autocommit
+from qtimer.model import Timer
 from qtimer.strings import strings
+
+import logging
+
+LOGGER = logging.getLogger(__name__)
 
 
 class PostTimer(Command):
@@ -16,14 +21,28 @@ class PostTimer(Command):
 
 	def runCommand(self, args, program, core):
 		args = [
-			'find', 'timers', '--inactive', '-i', args['id'], '-n', args['name'],
+			'find', 'timers', '--inactive', '--with-ticket',
+			'-i', args['id'], '-n', args['name'],
 			'-p', args['project'], '-t', args['ticket']
 		]
 		args = program.parseArgs(args)
-		timers = program.executeCommand(args).all()
-		print('Timers to be posted', repr(timers))
-		# for timer in timers:
-		# 	if not row.ticket_id:
-		# 		continue
-		# 	# TODO Setup testing env to test this
-		# 	program.plugin.postTimer(projectId=row.ticket.project.id, ticketId=row.ticket.ticket_id, data=row)
+		timers = program.executeCommand(args)
+
+		updatedTimers = []
+		for timer in timers:
+			try:
+				core.plugin.postTimer(
+					projectId=timer.ticket.project.id,
+					ticketId=timer.ticket.ticket_id,
+					data=timer
+				)
+				updatedTimers.append(timer.id)
+			except:
+				LOGGER.exception('Could not post timer.')
+
+		if not updatedTimers:
+			return
+
+		values = { 'posted': True, }
+		with autocommit(core.session) as session:
+			session.query(Timer).filter(Timer.id.in_(updatedTimers)).update(values)

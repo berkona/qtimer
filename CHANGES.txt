@@ -7,3 +7,4 @@
 	- Prevent syncing errors from destroying FK relations. 
 	- Fix database creation when first installed
 	- Added offline plugin, i.e., a plugin that doesn't need url or token data
+	- Added delete command (you can only deleted non-posted timers)

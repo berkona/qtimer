@@ -18,11 +18,11 @@ class ActiveCollabPlugin(PluginPrototype):
 		self.token = token
 
 	def listProjects(self):
-		req = ACRequest('projects', ac_url=self.url, 
+		req = ACRequest('projects', ac_url=self.url,
 			api_key=self.token)
 
 		makeProject = lambda item: Project(id=item['id'], name=item['name'])
-		return [ makeProject(item) for item in req.execute() ]
+		return filter(makeProject, req.execute())
 
 	def listTickets(self, projectId=-1):
 		if (projectId == -1):

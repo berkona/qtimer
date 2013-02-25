@@ -48,6 +48,8 @@ class FindObject(Command):
             action='store_true', default=False)
         parsers_find_timers.add_argument('--inactive',
             action='store_true', default=False)
+        parsers_find_timers.add_argument('--with-ticket',
+            action='store_true', default=False)
         parsers_find_timers.add_argument('-s', '--status')
         parsers_find_timers.add_argument('-p', '--project')
         parsers_find_timers.add_argument('-t', '--ticket')
@@ -90,7 +92,14 @@ class FindObject(Command):
         if 'inactive' in args and args['inactive']:
             q = q.join(Session).filter(Session.end != None)
 
+        # this is kinda a hack b/c we know that ormClass will be Timer
+        if 'with-ticket' in args and args['with-ticket']:
+            q = q.filter(ormClass.ticket.id != None)
+
         # Filter by status if asked
+        # Problem: if the client assumes it's a query object
+        # and uses this, it will fail horribly
+        # TODO: figure out a way to do this in SQL?
         if 'status' in args and args['status']:
             q = filter(lambda t: args['status'].lower() in t.status.lower(), q)
 
