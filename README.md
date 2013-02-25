@@ -26,7 +26,7 @@ has the following plugins:
 
 ### Freshbooks ###
 
-`Requires the [refreshbooks](https://pypi.python.org/pypi/refreshbooks/) python module.`
+**Requires the [refreshbooks](https://pypi.python.org/pypi/refreshbooks/) python module.**
 
 ```
 [account]
@@ -37,7 +37,7 @@ token = XXXXXXXXXXXXXXXXXXXXXXXX
 
 ### Active Collab ###
 
-`Currently broken pending pycollab updating for Python3/ActiveCollab3`
+**Currently broken pending pycollab updating for Python3/ActiveCollab3**
 
 ```
 [account]
