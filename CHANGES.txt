@@ -2,8 +2,8 @@
 0.1.1, Feb 03, 2013 -- Fixed setup.py when installing via pip-3.*
 0.1.2, Feb 03, 2013 -- Added default.ini to package
 0.1.3, Feb 08, 2013 -- qTimer will no longer fail when no operation is given.
-0.1.4, Feb 09, 2013 -- Added --version to qTimer.
-0.2, Feb 23, 2013 -- Offline Mode & various bug fixes
+0.1.4, Feb 09, 2013 -- Added --version to qTimer. (PYPI version -- stable)
+0.2, Feb 23, 2013 -- Offline Mode & various bug fixes (GitHub version -- development)
 	- Prevent syncing errors from destroying FK relations. 
 	- Fix database creation when first installed
 	- Added offline plugin, i.e., a plugin that doesn't need url or token data
