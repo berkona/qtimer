@@ -7,10 +7,6 @@ from qtimer.lib import tz
 import qtimer.env
 
 
-def filter_module_prototypes(prototypeName):
-	return not ()
-
-
 def expand_sql_url(url):
 	return expand_env_var('DATA_DIR', url)
 
@@ -49,3 +45,12 @@ def autocommit(session):
 			% (repr(session), repr(e)))
 		session.rollback()
 		raise
+
+class LazyObject(object):
+    def __init__(self, attributes):
+        self.attributes = attributes
+
+    def __getattr__(self, attrName):
+        attrVal = self.attributes[attrName]()
+        setattr(self, attrName, attrVal)
+        return attrVal

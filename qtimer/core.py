@@ -19,7 +19,7 @@ import alembic.command
 
 # Custom
 from qtimer.model import Ticket, Project, PersistentVar
-from qtimer.util import autocommit
+from qtimer.util import autocommit, LazyObject
 from qtimer.strings import strings
 from qtimer.config import Config
 from qtimer.env import *
@@ -31,30 +31,29 @@ SQLSession = sa.orm.sessionmaker()
 CoreLogger = logging.getLogger(__name__)
 
 
-class QTimerCore(object):
+class QTimerCore(LazyObject):
 
 	def __init__(self, configPath):
+		super(self, QTimerCore).__init__({
+			'lastSynced': self.loadLastSynced,
+			'session': self.loadSession,
+			'plugin': self.loadPlugin,
+			'config': self.loadConfig,
+		})
 		self.configPath = configPath
 
-	@property
-	def lastSynced(self):
-		if hasattr(self, '_lastSynced'):
-			return self._lastSynced
+	def loadLastSynced(self):
 		q = self.session.query(PersistentVar)\
 			.filter(PersistentVar.name.like('internal.lastSynced'))
 		try:
-			self._lastSynced = q.one().value
-			CoreLogger.debug('lastSynced: %s, now: %s, delta: %s', self._lastSynced, datetime.utcnow(), datetime.utcnow() - self._lastSynced)
-			return self._lastSynced
+			lastSynced = q.one().value
+			CoreLogger.debug('lastSynced: %s, now: %s, delta: %s', lastSynced, datetime.utcnow(), datetime.utcnow() - self._lastSynced)
+			return lastSynced
 		except BaseException as e:
 			CoreLogger.warn('Encountered exception: %s', repr(e))
 			pass
 
-	@property
-	def session(self):
-		if hasattr(self, '_session'):
-			return self._session
-
+	def loadSession(self):
 		if not path.exists(DATA_DIR):
 			makedirs(DATA_DIR)
 
@@ -70,31 +69,22 @@ class QTimerCore(object):
 
 		SQLSession.configure(bind=self.engine)
 
-		self._session = SQLSession()
-		return self._session
+		return SQLSession()
 
-	@property
-	def plugin(self):
-		if hasattr(self, '_plugin'):
-			return self._plugin
-
+	def loadPlugin(self):
 		url = self.config.account.url
 		token = self.config.account.token
 		accountType = self.config.account.type
-		if ((not accountType) and (accountType != 'offline' and (not url or not token))):
+
+		# Let's just assume for now the plugin will complain if the config is bad
+		if not accountType:
 			raise RuntimeError(strings['bad_config'])
 
 		mod = import_module(PLUGIN_MOD % accountType)
-		self._plugin = mod.load_qtimer_plugin(url, token)
-		return self._plugin
+		return mod.load_qtimer_plugin(url, token)
 
-	@property
-	def config(self):
-		if hasattr(self, '_config'):
-			return self._config
-
-		self._config = Config(self.configPath)
-		return self._config
+	def loadConfig(self):
+		return Config(self.configPath)
 
 	def syncConditionally(self):
 		mins = int(self.config.account.cache_lifetime)
@@ -150,9 +140,9 @@ class QTimerCore(object):
 		CoreLogger.info('QTimerCore shutdown.')
 		CoreLogger.info('Flushing and closing all retained sessions')
 
-		# If we call self.session, we will initialize the db, which would be bad
-		# If we haven't already
-		if (hasattr(self, '_session')):
+		# If we call self.session, we will initialize the db, \
+		# which would be bad if we haven't already
+		if (hasattr(self, 'session')):
 			self.session.flush()
 			self.session.close()
 

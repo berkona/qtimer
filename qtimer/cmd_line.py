@@ -6,7 +6,7 @@ from os import path, listdir
 import argparse
 import logging
 
-from qtimer.util import smart_truncate
+from qtimer.util import smart_truncate, LazyObject
 from qtimer.core import create_qtimer
 from qtimer.lib import terminalsize
 from qtimer.strings import strings
@@ -15,18 +15,17 @@ from qtimer.env import *
 OutputLogger = logging.getLogger('output')
 
 
-class QTimerCommandLine(object):
+class QTimerCommandLine(LazyObject):
 
 	def __init__(self, core):
+		super(self, QTimerCommandLine).__init__({
+			'commands': self.loadCommands,
+			'parser': self.loadParser,
+		})
 		self.core = core
 
-	# We use getter properties to offset resource creation until we need it
-	@property
-	def commands(self):
-		if hasattr(self, '_commands'):
-			return self._commands
-
-		self._commands = {}
+	def loadCommands(self):
+		commands = {}
 		commandPath = path.join(SCRIPT_ROOT, 'commands')
 
 		files = (path.splitext(item)[0] for item in listdir(commandPath)
@@ -34,15 +33,12 @@ class QTimerCommandLine(object):
 				and path.isfile(path.join(commandPath, item)))
 
 		for f in files:
-			self._importCommand(f)
+			key, command = self._importCommand(f)
+			commands[key] = command
 
-		return self._commands
+		return commands
 
-	@property
-	def parser(self):
-		if hasattr(self, '_parser'):
-			return self._parser
-
+	def loadParser(self):
 		parser = argparse.ArgumentParser(prog=APP_NAME)
 		parser.add_argument('--version',
 			action='version', version='%(prog)s ' + VERSION)
@@ -56,8 +52,7 @@ class QTimerCommandLine(object):
 				subparser = subparsers.add_parser(identifier)
 			command.addArguments(subparser)
 
-		self._parser = parser
-		return self._parser
+		return parser
 
 	def parseArgs(self, argsOverride=None):
 		args = self.parser.parse_args(argsOverride)
@@ -110,7 +105,7 @@ class QTimerCommandLine(object):
 		if not hasattr(command, 'COMMAND_IDENTIFIER'):
 			raise RuntimeError('Command %s must declare an ID' % (COMMANDS_MOD % f))
 
-		self._commands[command.COMMAND_IDENTIFIER] = command
+		return command.COMMAND_IDENTIFIER, command
 
 
 def main():
